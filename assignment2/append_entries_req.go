@@ -38,8 +38,12 @@ func (sm *StateMachine) AppendEntriesReqEH(ev AppendEntriesReqEv) ([]interface{}
 func (sm *StateMachine) FollowerAppendEntriesReqEH(ev AppendEntriesReqEv) ([]interface{}) {
 	var actions []interface{}
         if sm.term <= ev.term {
+		if sm.term < ev.term {
+			sm.votedFor = 0
+		}
                 sm.term = ev.term
 		actions = append(actions, AlarmAc{150})
+		actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
 		if(ev.prevLogIndex > uint64(len(sm.log)) && sm.log[ev.prevLogIndex].term == ev.prevLogTerm) {
 			sm.log = sm.log[:ev.prevLogIndex+1]
 			sm.log = append(sm.log,ev.entries...)
@@ -59,6 +63,10 @@ func (sm *StateMachine) FollowerAppendEntriesReqEH(ev AppendEntriesReqEv) ([]int
 func (sm *StateMachine) LeaderCandidateAppendEntriesReqEH(ev AppendEntriesReqEv) ([]interface{}) {
 	var actions []interface{}
 	if sm.term <= ev.term {
+		if sm.term < ev.term {
+			sm.votedFor = 0
+		}
+		sm.term = ev.term
 		sm.state = "Follower"
 		actions = sm.FollowerAppendEntriesReqEH(ev)
 	} else {

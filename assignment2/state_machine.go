@@ -15,6 +15,7 @@ type StateMachine struct {
 	nextIndex []uint64
 	matchIndex []uint64
 	yesVotes uint64
+	noVotes uint64
 }
 
 func (sm *StateMachine) ProcessEvent (ev interface{}) {

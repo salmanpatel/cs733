@@ -34,6 +34,7 @@ func (sm *StateMachine) LeaderCandidateVoteReqEH(ev VoteReqEv) ([]interface{}) {
 	var actions []interface{}
 	if sm.term < ev.term {
 		sm.term = ev.term
+		sm.votedFor = 0
 		sm.state = "Follower"
 		actions = append(actions, AlarmAc{150})
 		if (sm.log[len(sm.log)-1].term < ev.lastLogTerm) || (sm.log[len(sm.log)-1].term == ev.lastLogTerm && uint64(len(sm.log)-1) <= ev.lastLogIndex) {
@@ -42,6 +43,7 @@ func (sm *StateMachine) LeaderCandidateVoteReqEH(ev VoteReqEv) ([]interface{}) {
 		} else {
 			actions = append(actions, SendAc{ev.candidateId, VoteResEv{sm.term, false}})
 		}
+		actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
 	} else {
 		actions = append(actions, SendAc{ev.candidateId, VoteResEv{sm.term, false}})
 	}
@@ -51,14 +53,23 @@ func (sm *StateMachine) LeaderCandidateVoteReqEH(ev VoteReqEv) ([]interface{}) {
 func (sm *StateMachine) FollowerVoteReqEH(ev VoteReqEv) ([]interface{}) {
 	var actions []interface{}
 	// votedFor = 0, means it has not voted for this term
-	if (sm.term < ev.term) && (sm.votedFor == 0 ||  sm.votedFor == ev.candidateId) {
-		sm.term = ev.term
+	flag := false
+	if (sm.term < ev.term) || ((sm.term == ev.term) && (sm.votedFor == 0 ||  sm.votedFor == ev.candidateId)) {
+		if sm.term < ev.term {
+			sm.votedFor = 0
+			sm.term = ev.term
+			flag = true
+		}
 		if (sm.log[len(sm.log)-1].term < ev.lastLogTerm) || (sm.log[len(sm.log)-1].term == ev.lastLogTerm && uint64(len(sm.log)-1) <= ev.lastLogIndex) {
 			sm.votedFor = ev.candidateId
+			flag = true
 			actions = append(actions, AlarmAc{150})
 			actions = append(actions, SendAc{ev.candidateId, VoteResEv{sm.term, true}})
 		} else {
 			actions = append(actions, SendAc{ev.candidateId, VoteResEv{sm.term, false}})
+		}
+		if flag {
+			actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
 		}
 	} else {
 		actions = append(actions, SendAc{ev.candidateId, VoteResEv{sm.term, false}})

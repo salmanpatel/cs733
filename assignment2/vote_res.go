@@ -7,74 +7,66 @@ type VoteResEv struct {
 	voteGranted bool
 }
 
-func (sm *StateMachine) AppendEntriesResEH(ev AppendEntriesResEv) ([]interface{}) {
+func (sm *StateMachine) VoteResEH(ev VoteResEv) ([]interface{}) {
 	var actions []interface{}
 	switch sm.state {
 		case "Leader":
-			return sm.LeaderAppendEntriesResEH(ev)
+			return sm.LeaderVoteResEH(ev)
 		case "Follower":
-			return sm.FollowerAppendEntriesResEH(ev)
+			return sm.FollowerVoteResEH(ev)
 		case "Candidate":
-			return sm.CandidateAppendEntriesResEH(ev)
+			return sm.CandidateVoteResEH(ev)
 	}
 	return actions
 }
 
-func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) ([]interface{}) {
+func (sm *StateMachine) LeaderVoteResEH(ev VoteResEv) ([]interface{}) {
 	var actions []interface{}
-	// Append Entry Failure
-	if !ev.success {
-		if sm.term < ev.term {
-			sm.term = ev.term
-			sm.state = "Follower"
-		} else {
-			// Valid Leader - Mismatch in prevIndex entry
-			sm.nextIndex[ev.from]--
-			actions = append(actions, SendAc{ev.from, AppendEntriesReqEv{sm.term, sm.config.serverId, sm.nextIndex[ev.from]-1, sm.log[sm.nextIndex[ev.from]-1].term, sm.log[sm.nextIndex[ev.from]:], sm.commitIndex}})
+	return actions
+}
+
+func (sm *StateMachine) FollowerVoteResEH(ev VoteResEv) ([]interface{}) {
+	var actions []interface{}
+	if ev.term > sm.term {
+		sm.term = ev.term
+		sm.votedFor = 0
+		actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
+	}
+	return actions
+}
+
+func (sm *StateMachine) CandidateVoteResEH(ev VoteResEv) ([]interface{}) {
+	var actions []interface{}
+	majority := len(sm.config.peerIds)/2 + 1
+	flag := false
+	if ev.voteGranted {
+		sm.yesVotes += 1
+		if sm.yesVotes >= uint64(majority) {
+			flag = true
+			sm.state = "Leader"
+			for i:=0; i<len(sm.config.peerIds); i++ {
+				sm.nextIndex[i] = uint64(len(sm.log))
+				sm.matchIndex[i] = 0
+				actions = append(actions, SendAc{sm.config.peerIds[i], AppendEntriesReqEv{sm.term, sm.config.serverId, uint64(len(sm.log)-2), sm.log[len(sm.log)-2].term, nil, sm.commitIndex}})
+			}
+			actions = append(actions, AlarmAc{150})
 		}
+	} else if ev.term > sm.term {
+		flag = true
+		sm.term = ev.term
+		sm.state = "Follower"
+		sm.votedFor = 0
+		actions = append(actions, AlarmAc{150})
 	} else {
-		// Update sm.matchIndex[msg.from] to the last replicated index
-		sm.nextIndex[ev.from] = uint64(len(sm.log))
-		maxCommitIndex := sm.commitIndex
-		totFol := 1
-		majority := len(sm.config.peerIds)/2 + 1
-		for i:=0 ; i<len(sm.config.peerIds); i++ {
-			if sm.matchIndex[i] > maxCommitIndex {
-				for j:=0; j<len(sm.config.peerIds); j++ { 
-					if j!=i && sm.matchIndex[j]>=sm.matchIndex[i] {
-						totFol+=1
-					}
-					if totFol >= majority && sm.matchIndex[i] > maxCommitIndex {
-						maxCommitIndex = sm.matchIndex[i]
-						break
-					}
-				}
-				totFol = 1
-			}
-		}
-		// Update Commitindex and send commit action to clients
-		if maxCommitIndex > sm.commitIndex && sm.log[maxCommitIndex].term == sm.term {
-			for i:= sm.commitIndex+1; i<=maxCommitIndex; i++ {
-				actions = append(actions, CommitAc{i, sm.log[i].data, nil})
-			}
-			sm.commitIndex = maxCommitIndex
+		flag = true
+		sm.noVotes++
+		if sm.noVotes >= uint64(majority) {
+			sm.state = "Follower"
+			actions = append(actions, AlarmAc{150})	
 		}
 	}
-	return actions
-}
-
-func (sm *StateMachine) FollowerAppendEntriesResEH(ev AppendEntriesResEv) ([]interface{}) {
-	var actions []interface{}
-	if ev.term > sm.term {
-		sm.term = ev.term
-	}
-	return actions
-}
-
-func (sm *StateMachine) CandidateAppendEntriesResEH(ev AppendEntriesResEv) ([]interface{}) {
-	var actions []interface{}
-	if ev.term > sm.term {
-		sm.term = ev.term
+	if flag {
+		actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
 	}
 	return actions
 }

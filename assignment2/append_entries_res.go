@@ -14,9 +14,9 @@ func (sm *StateMachine) AppendEntriesResEH(ev AppendEntriesResEv) ([]interface{}
 		case "Leader":
 			return sm.LeaderAppendEntriesResEH(ev)
 		case "Follower":
-			return sm.FollowerAppendEntriesResEH(ev)
+			return sm.FollowerCandidateAppendEntriesResEH(ev)
 		case "Candidate":
-			return sm.CandidateAppendEntriesResEH(ev)
+			return sm.FollowerCandidateAppendEntriesResEH(ev)
 	}
 	return actions
 }
@@ -27,7 +27,10 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) ([]inter
 	if !ev.success {
 		if sm.term < ev.term {
 			sm.term = ev.term
+			sm.votedFor = 0
 			sm.state = "Follower"
+			actions = append(actions, AlarmAc{150})
+			actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
 		} else {
 			// Valid Leader - Mismatch in prevIndex entry
 			sm.nextIndex[ev.from]--
@@ -64,18 +67,12 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) ([]inter
 	return actions
 }
 
-func (sm *StateMachine) FollowerAppendEntriesResEH(ev AppendEntriesResEv) ([]interface{}) {
+func (sm *StateMachine) FollowerCandidateAppendEntriesResEH(ev AppendEntriesResEv) ([]interface{}) {
 	var actions []interface{}
 	if ev.term > sm.term {
 		sm.term = ev.term
-	}
-	return actions
-}
-
-func (sm *StateMachine) CandidateAppendEntriesResEH(ev AppendEntriesResEv) ([]interface{}) {
-	var actions []interface{}
-	if ev.term > sm.term {
-		sm.term = ev.term
+		sm.votedFor = 0
+		actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
 	}
 	return actions
 }

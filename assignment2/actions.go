@@ -15,13 +15,13 @@ type AlarmAc struct {
 	time uint64
 }
 
-type LogStore struct {
+type LogStoreAc struct {
 	index uint64
 	data []byte
 }
 
-type StateStore struct {
+type StateStoreAc struct {
 	term uint64
+	state string
 	votedFor uint64
-	state uint64
 }

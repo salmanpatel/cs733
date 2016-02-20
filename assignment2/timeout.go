@@ -26,9 +26,9 @@ func (sm *StateMachine) FollowerCandidateTimeoutEH(ev TimeoutEv) ([]interface{})
 	sm.term++
 	if sm.state != "Candidate" {
 		sm.state = "Candidate"
-		// State store
 	}
 	sm.votedFor = sm.config.serverId
+	actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
 	// Setting Election timeout
 	actions = append(actions, AlarmAc{150})
 	for i:=0; i<len(sm.config.peerIds); i++ {
