@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -71,7 +72,7 @@ func expectActions(t *testing.T, actualAc []interface{}, expectedAc []interface{
 		expMap[reflect.TypeOf(val)] += 1
 	}
 	if !reflect.DeepEqual(expMap, actMap) {
-		fmt.Printf("%v\n%v\n",actMap,expMap)
+		fmt.Printf("%v\n%v\n", actMap, expMap)
 		t.Fatal(fmt.Sprintf("%v :Actions Mismatch in Map:\n", errStr))
 	}
 	if !actionsEquality(actualAc, expectedAc) || !actionsEquality(expectedAc, actualAc) {
@@ -116,6 +117,13 @@ func TestLeaderAppend(t *testing.T) {
 	outputAc := sm.ProcessEvent(AppendEv{[]byte("lm")})
 	expectSM(t, sm, &StateMachine{state: "Leader", log: []LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}, term: 3, config: Config{999, []uint64{995, 996, 997, 998}}, nextIndex: []uint64{1, 3, 2, 1}, commitIndex: 0}, "Leader Append")
 	expectActions(t, outputAc, []interface{}{LogStoreAc{3, 3, []byte("lm")}, SendAc{995, AppendEntriesReqEv{3, 999, 0, 1, []LogEntry{LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}, 0}}, SendAc{996, AppendEntriesReqEv{3, 999, 2, 2, []LogEntry{LogEntry{3, []byte("lm")}}, 0}}, SendAc{997, AppendEntriesReqEv{3, 999, 1, 2, []LogEntry{LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}, 0}}, SendAc{998, AppendEntriesReqEv{3, 999, 0, 1, []LogEntry{LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}, 0}}}, "Follower TO")
+}
+
+func TestFollowerAppend(t *testing.T) {
+	sm := &StateMachine{state: "Follower", log: []LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}}
+	outputAc := sm.ProcessEvent(AppendEv{[]byte("nop")})
+	expectSM(t, sm, &StateMachine{state: "Follower", log: []LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}}, "Follower Append")
+	expectActions(t, outputAc, []interface{}{CommitAc{3, []byte("nop"), errors.New("Not a Leader")}}, "Follower TO")
 }
 
 func TestFollowerAppendEntriesReqSuccess(t *testing.T) {
@@ -196,12 +204,32 @@ func TestVoteResCandidateToLeader(t *testing.T) {
 }
 
 func TestVoteResCandidateBackToFollower(t *testing.T) {
-	sm := &StateMachine{state: "Candidate", term: 5, noVotes: 2, votedFor:999}
+	sm := &StateMachine{state: "Candidate", term: 5, noVotes: 2, votedFor: 999}
 	outputAc := sm.ProcessEvent(VoteResEv{5, false})
-	expectSM(t, sm, &StateMachine{state: "Follower", term: 5, noVotes: 3, votedFor:999}, "Vote Response - Candidate Back to Follower")
-	expectActions(t, outputAc, []interface{}{AlarmAc{150}, StateStoreAc{5,"Follower",999}}, "Vote Response - Candidate Back to Follower")
+	expectSM(t, sm, &StateMachine{state: "Follower", term: 5, noVotes: 3, votedFor: 999}, "Vote Response - Candidate Back to Follower")
+	expectActions(t, outputAc, []interface{}{AlarmAc{150}, StateStoreAc{5, "Follower", 999}}, "Vote Response - Candidate Back to Follower")
 }
 
+func TestVoteResCandidateHigherTerm(t *testing.T) {
+	sm := &StateMachine{state: "Candidate", term: 4, votedFor: 999}
+	outputAc := sm.ProcessEvent(VoteResEv{5, false})
+	expectSM(t, sm, &StateMachine{state: "Follower", term: 5, votedFor: 0}, "Vote Response - Candidate - Higher term")
+	expectActions(t, outputAc, []interface{}{AlarmAc{150}, StateStoreAc{5, "Follower", 0}}, "Vote Response - Candidate - Higher term")
+}
+
+func TestVoteResLeader(t *testing.T) {
+	sm := &StateMachine{state: "Leader"}
+	outputAc := sm.ProcessEvent(VoteResEv{5, false})
+	expectSM(t, sm, &StateMachine{state: "Leader"}, "Vote Response - Leader")
+	expectActions(t, outputAc, nil, "Vote Response - Leader")
+}
+
+func TestVoteResFollower(t *testing.T) {
+	sm := &StateMachine{state: "Follower", term: 4, votedFor: 999}
+	outputAc := sm.ProcessEvent(VoteResEv{5, false})
+	expectSM(t, sm, &StateMachine{state: "Follower", term: 5, votedFor: 0}, "Vote Response - Follower")
+	expectActions(t, outputAc, []interface{}{StateStoreAc{5, "Follower", 0}}, "Vote Response - Follower")
+}
 
 func TestVoteReqFollower(t *testing.T) {
 	sm := &StateMachine{state: "Follower", term: 5, votedFor: 999, log: []LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("ghi")}}, config: Config{999, []uint64{995, 996, 997, 998}}}
