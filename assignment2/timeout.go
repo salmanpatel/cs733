@@ -1,10 +1,5 @@
 package main
 
-import (
-//	"fmt"
-//	"math"
-)
-
 type TimeoutEv struct {
 }
 
@@ -32,7 +27,7 @@ func (sm *StateMachine) FollowerCandidateTimeoutEH(ev TimeoutEv) ([]interface{})
 	// Setting Election timeout
 	actions = append(actions, AlarmAc{150})
 	for i:=0; i<len(sm.config.peerIds); i++ {
-		actions = append(actions, VoteReqEv{sm.term, sm.config.serverId, uint64(len(sm.log)-1), sm.log[len(sm.log)-1].term})
+		actions = append(actions, SendAc{sm.config.peerIds[i], VoteReqEv{sm.term, sm.config.serverId, uint64(len(sm.log)-1), sm.log[len(sm.log)-1].term}})
 	}
 	sm.yesVotes = 1
 	return actions

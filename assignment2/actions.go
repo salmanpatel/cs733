@@ -17,6 +17,7 @@ type AlarmAc struct {
 
 type LogStoreAc struct {
 	index uint64
+	term uint64
 	data []byte
 }
 

@@ -22,9 +22,13 @@ func (sm *StateMachine) AppendEH(ev AppendEv) []interface{} {
 func (sm *StateMachine) LeaderAppendEH(ev AppendEv) ([]interface{}) {
 	var actions []interface{}
 	sm.log = append(sm.log, LogEntry{sm.term, ev.data})
-	actions = append(actions, LogStoreAc{uint64(len(sm.log)-1), ev.data})
+	actions = append(actions, LogStoreAc{uint64(len(sm.log)-1), sm.term, ev.data})
 	for i:=0; i<len(sm.config.peerIds); i++ {
-		actions = append(actions, SendAc{sm.config.peerIds[i], AppendEntriesReqEv{sm.term, sm.config.serverId, sm.nextIndex[sm.config.peerIds[i]]-1, sm.log[sm.nextIndex[sm.config.peerIds[i]]-1].term, sm.log[sm.nextIndex[sm.config.peerIds[i]]:], sm.commitIndex}})
+		prevTerm := uint64(0)
+		if sm.nextIndex[i] != 0 {
+			prevTerm = sm.log[sm.nextIndex[i]-1].term
+		}
+		actions = append(actions, SendAc{sm.config.peerIds[i], AppendEntriesReqEv{sm.term, sm.config.serverId, sm.nextIndex[i]-1, prevTerm, sm.log[sm.nextIndex[i]:], sm.commitIndex}})
 	}
 	return actions
 }

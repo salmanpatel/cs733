@@ -18,26 +18,36 @@ type StateMachine struct {
 	noVotes uint64
 }
 
-func (sm *StateMachine) ProcessEvent (ev interface{}) {
+func (sm *StateMachine) ProcessEvent (ev interface{}) []interface{} {
+	var actions []interface{}
 	switch ev.(type) {
+	case AppendEv:
+		cmd := ev.(AppendEv)
+		actions = sm.AppendEH(cmd)
 	case AppendEntriesReqEv:
 		cmd := ev.(AppendEntriesReqEv)
-		sm.AppendEntriesReqEH(cmd)
+		actions = sm.AppendEntriesReqEH(cmd)
 	case AppendEntriesResEv:
 		cmd := ev.(AppendEntriesResEv)
-		sm.AppendEntriesResEH(cmd)
+		actions = sm.AppendEntriesResEH(cmd)
 	case TimeoutEv:
 		cmd := ev.(TimeoutEv)
-		sm.TimeoutEH(cmd)
-//	case VoteReqEv:
-//		cmd := ev.(VoteReqEv)
-//		fmt.Printf("%v\n", cmd)
+		actions = sm.TimeoutEH(cmd)
+	case VoteReqEv:
+		cmd := ev.(VoteReqEv)
+		actions = sm.VoteReqEH(cmd)
+	case VoteResEv:
+		cmd := ev.(VoteResEv)
+		actions = sm.VoteResEH(cmd)
 	default: println ("Unrecognized")
 	}
+	return actions
 }
 
+/*
 func main() {
 	var sm StateMachine
 	sm.state = "Leader"
 	sm.ProcessEvent(AppendEntriesReqEv{term : 10, prevLogIndex: 100, prevLogTerm: 3})
 }
+*/

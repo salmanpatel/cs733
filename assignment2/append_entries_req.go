@@ -1,10 +1,5 @@
 package main
 
-import (
-//	"fmt"
-//	"math"
-)
-
 type AppendEntriesReqEv struct {
 	term uint64
 	leaderId uint64
