@@ -88,7 +88,7 @@ func actionsEquality(actualAc []interface{}, expectedAc []interface{}) bool {
 			}
 		}
 		if !flag {
-						fmt.Printf("%v\n",actVal)
+			fmt.Printf("%v\n",actVal)
 			return false
 		}
 		flag = false
@@ -188,4 +188,10 @@ func TestCandidateAppendEntriesRes(t *testing.T) {
 	expectActions(t, outputAc, []interface{}{StateStoreAc{5, "Follower", 0}}, "Candidate AppendEntriesRes with higher term response")
 }
 
+func TestVoteResCandidateToLeader(t *testing.T) {
+	sm := &StateMachine{state:"Candidate",term:5,yesVotes:2,log:[]LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}}, config:Config{999, []uint64{995, 996, 997, 998}}, commitIndex:1,nextIndex:[]uint64{1,1,1,1},matchIndex:[]uint64{0,0,0,0}}
+	outputAc := sm.ProcessEvent(VoteResEv{5,true})
+	expectSM(t, sm, &StateMachine{state:"Leader",term:5,yesVotes:3,nextIndex:[]uint64{3,3,3,3}, matchIndex:[]uint64{0,0,0,0} ,log:[]LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}}, config:Config{999, []uint64{995, 996, 997, 998}},commitIndex:1}, "Vote Response - Candidate to Leader")
+	expectActions(t, outputAc, []interface{}{AlarmAc{150}, SendAc{995, AppendEntriesReqEv{5,999,2,2,nil,1}}, SendAc{996, AppendEntriesReqEv{5,999,2,2,nil,1}}, SendAc{997, AppendEntriesReqEv{5,999,2,2,nil,1}}, SendAc{998, AppendEntriesReqEv{5,999,2,2,nil,1}},StateStoreAc{5, "Leader",0}}, "Vote Response - Candidate to Leader")
+}
 
