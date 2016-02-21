@@ -6,19 +6,19 @@ type LogEntry struct {
 }
 
 type StateMachine struct {
-	config Config
-	term uint64
-	votedFor uint64
-	log []LogEntry
-	state string
+	config      Config
+	term        uint64
+	votedFor    uint64
+	log         []LogEntry
+	state       string
 	commitIndex uint64
-	nextIndex []uint64
-	matchIndex []uint64
-	yesVotes uint64
-	noVotes uint64
+	nextIndex   []uint64
+	matchIndex  []uint64
+	yesVotes    uint64
+	noVotes     uint64
 }
 
-func (sm *StateMachine) ProcessEvent (ev interface{}) []interface{} {
+func (sm *StateMachine) ProcessEvent(ev interface{}) []interface{} {
 	var actions []interface{}
 	switch ev.(type) {
 	case AppendEv:
@@ -39,7 +39,8 @@ func (sm *StateMachine) ProcessEvent (ev interface{}) []interface{} {
 	case VoteResEv:
 		cmd := ev.(VoteResEv)
 		actions = sm.VoteResEH(cmd)
-	default: println ("Unrecognized")
+	default:
+		println("Unrecognized")
 	}
 	return actions
 }

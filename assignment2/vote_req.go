@@ -1,22 +1,21 @@
 package main
 
 type VoteReqEv struct {
-	term uint64
-	candidateId uint64
+	term         uint64
+	candidateId  uint64
 	lastLogIndex uint64
-	lastLogTerm uint64
+	lastLogTerm  uint64
 }
 
-
-func (sm *StateMachine) VoteReqEH(ev VoteReqEv) ([]interface{}) {
+func (sm *StateMachine) VoteReqEH(ev VoteReqEv) []interface{} {
 	var actions []interface{}
 	switch sm.state {
-		case "Leader":
-			actions = sm.LeaderCandidateVoteReqEH(ev)
-		case "Follower":
-			actions = sm.FollowerVoteReqEH(ev)
-		case "Candidate":
-			actions = sm.LeaderCandidateVoteReqEH(ev)
+	case "Leader":
+		actions = sm.LeaderCandidateVoteReqEH(ev)
+	case "Follower":
+		actions = sm.FollowerVoteReqEH(ev)
+	case "Candidate":
+		actions = sm.LeaderCandidateVoteReqEH(ev)
 	}
 	return actions
 }
@@ -25,7 +24,7 @@ func (sm *StateMachine) VoteReqEH(ev VoteReqEv) ([]interface{}) {
 
 }*/
 
-func (sm *StateMachine) LeaderCandidateVoteReqEH(ev VoteReqEv) ([]interface{}) {
+func (sm *StateMachine) LeaderCandidateVoteReqEH(ev VoteReqEv) []interface{} {
 	var actions []interface{}
 	if sm.term < ev.term {
 		sm.term = ev.term
@@ -45,11 +44,11 @@ func (sm *StateMachine) LeaderCandidateVoteReqEH(ev VoteReqEv) ([]interface{}) {
 	return actions
 }
 
-func (sm *StateMachine) FollowerVoteReqEH(ev VoteReqEv) ([]interface{}) {
+func (sm *StateMachine) FollowerVoteReqEH(ev VoteReqEv) []interface{} {
 	var actions []interface{}
 	// votedFor = 0, means it has not voted for this term
 	flag := false
-	if (sm.term < ev.term) || ((sm.term == ev.term) && (sm.votedFor == 0 ||  sm.votedFor == ev.candidateId)) {
+	if (sm.term < ev.term) || ((sm.term == ev.term) && (sm.votedFor == 0 || sm.votedFor == ev.candidateId)) {
 		if sm.term < ev.term {
 			sm.votedFor = 0
 			sm.term = ev.term

@@ -39,7 +39,7 @@ func (sm *StateMachine) FollowerAppendEntriesReqEH(ev AppendEntriesReqEv) []inte
 		sm.term = ev.term
 		actions = append(actions, AlarmAc{150})
 		actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
-		if (ev.prevLogTerm == 0) {
+		if ev.prevLogTerm == 0 {
 			sm.log = ev.entries
 			for i := 0; i < len(ev.entries); i++ {
 				actions = append(actions, LogStoreAc{uint64(i), ev.entries[i].term, ev.entries[i].data})
@@ -48,7 +48,7 @@ func (sm *StateMachine) FollowerAppendEntriesReqEH(ev AppendEntriesReqEv) []inte
 			if ev.leaderCommit > sm.commitIndex {
 				sm.commitIndex = MinInt(ev.leaderCommit, uint64(len(sm.log)-1))
 			}
-		} else if (ev.prevLogIndex < uint64(len(sm.log)) && sm.log[ev.prevLogIndex].term == ev.prevLogTerm) {
+		} else if ev.prevLogIndex < uint64(len(sm.log)) && sm.log[ev.prevLogIndex].term == ev.prevLogTerm {
 			sm.log = sm.log[:ev.prevLogIndex+1]
 			sm.log = append(sm.log, ev.entries...)
 			for i := 0; i < len(ev.entries); i++ {

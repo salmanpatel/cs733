@@ -6,5 +6,5 @@ package main
 
 type Config struct {
 	serverId uint64
-	peerIds []uint64
+	peerIds  []uint64
 }
