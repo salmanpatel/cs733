@@ -1,10 +1,5 @@
 package main
 
-import (
-//	"fmt"
-//	"math"
-)
-
 type VoteReqEv struct {
 	term uint64
 	candidateId uint64
@@ -61,8 +56,10 @@ func (sm *StateMachine) FollowerVoteReqEH(ev VoteReqEv) ([]interface{}) {
 			flag = true
 		}
 		if (sm.log[len(sm.log)-1].term < ev.lastLogTerm) || (sm.log[len(sm.log)-1].term == ev.lastLogTerm && uint64(len(sm.log)-1) <= ev.lastLogIndex) {
+			if sm.term < ev.term {
+				flag = true
+			}
 			sm.votedFor = ev.candidateId
-			flag = true
 			actions = append(actions, AlarmAc{150})
 			actions = append(actions, SendAc{ev.candidateId, VoteResEv{sm.term, true}})
 		} else {

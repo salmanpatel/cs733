@@ -195,3 +195,37 @@ func TestVoteResCandidateToLeader(t *testing.T) {
 	expectActions(t, outputAc, []interface{}{AlarmAc{150}, SendAc{995, AppendEntriesReqEv{5,999,2,2,nil,1}}, SendAc{996, AppendEntriesReqEv{5,999,2,2,nil,1}}, SendAc{997, AppendEntriesReqEv{5,999,2,2,nil,1}}, SendAc{998, AppendEntriesReqEv{5,999,2,2,nil,1}},StateStoreAc{5, "Leader",0}}, "Vote Response - Candidate to Leader")
 }
 
+func TestVoteReqFollower(t *testing.T) {
+	sm := &StateMachine{state:"Follower",term:5,votedFor:999,log:[]LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("ghi")}}, config:Config{999,[]uint64{995, 996, 997, 998}}}
+	outputAc := sm.ProcessEvent(VoteReqEv{5,999,3,3})
+	expectSM(t, sm, &StateMachine{state:"Follower",term:5,votedFor:999,log:[]LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("ghi")}}, config:Config{999,[]uint64{995, 996, 997, 998}}}, "Vote Request - Follower - Vote Granted")
+	expectActions(t, outputAc, []interface{}{AlarmAc{150}, SendAc{999, VoteResEv{5,true}}}, "Vote Request - Follower - Vote Granted")
+}
+
+func TestVoteReqFollowerNotUptoDate(t *testing.T) {
+	sm := &StateMachine{state:"Follower",term:5,votedFor:999,log:[]LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("ghi")}}, config:Config{999,[]uint64{995, 996, 997, 998}}}
+	outputAc := sm.ProcessEvent(VoteReqEv{5,999,1,3})
+	expectSM(t, sm, &StateMachine{state:"Follower",term:5,votedFor:999,log:[]LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("ghi")}}, config:Config{999,[]uint64{995, 996, 997, 998}}}, "Vote Request - Follower - Log Not Upto Date")
+	expectActions(t, outputAc, []interface{}{SendAc{999, VoteResEv{5,false}}}, "Vote Request - Follower - Log Not Upto Date")
+}
+
+func TestVoteReqLeader(t *testing.T) {
+	sm := &StateMachine{state:"Leader",term:4,votedFor:997,log:[]LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("ghi")}}, config:Config{999,[]uint64{995, 996, 997, 998}}}
+	outputAc := sm.ProcessEvent(VoteReqEv{5,999,2,3})
+	expectSM(t, sm, &StateMachine{state:"Follower",term:5,votedFor:999,log:[]LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("ghi")}}, config:Config{999,[]uint64{995, 996, 997, 998}}}, "Vote Request - Leader")
+	expectActions(t, outputAc, []interface{}{AlarmAc{150}, SendAc{999, VoteResEv{5,true}}, StateStoreAc{5, "Follower", 999}}, "Vote Request - Follower - Leader")
+}
+
+func TestVoteReqCandidateLowerTerm(t *testing.T) {
+	sm := &StateMachine{state:"Candidate",term:4,votedFor:997,log:[]LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("ghi")}}, config:Config{999,[]uint64{995, 996, 997, 998}}}
+	outputAc := sm.ProcessEvent(VoteReqEv{3,999,2,3})
+	expectSM(t, sm, &StateMachine{state:"Candidate",term:4,votedFor:997,log:[]LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("ghi")}}, config:Config{999,[]uint64{995, 996, 997, 998}}}, "Vote Request - Candidate - Lower term request")
+	expectActions(t, outputAc, []interface{}{SendAc{999, VoteResEv{4,false}}}, "Vote Request - Follower - Candidate - Lower term request")
+}
+
+func TestVoteReqCandidateLeaderNotUptoDate(t *testing.T) {
+	sm := &StateMachine{state:"Candidate",term:4,votedFor:997,log:[]LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("ghi")}}, config:Config{999,[]uint64{995, 996, 997, 998}}}
+	outputAc := sm.ProcessEvent(VoteReqEv{5,999,2,2})
+	expectSM(t, sm, &StateMachine{state:"Follower",term:5,votedFor:0,log:[]LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("ghi")}}, config:Config{999,[]uint64{995, 996, 997, 998}}}, "Vote Request - Candidate - Leader not upto date")
+	expectActions(t, outputAc, []interface{}{AlarmAc{150}, SendAc{999, VoteResEv{5,false}}, StateStoreAc{5, "Follower", 0}}, "Vote Request - Candidate - Leader not upto date")
+}
