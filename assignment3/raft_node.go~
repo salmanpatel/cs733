@@ -1,0 +1,50 @@
+package main
+
+type RaftNode struct { // implements Node interface
+	sm        StateMachine
+	eventCh   chan interface{}
+	timeoutCh <-chan bool
+}
+
+func (rn *RaftNode) Append(data []byte) {
+	rn.eventCh <- AppendEv{data}
+}
+
+func (rn *RaftNode) processEvents() {
+	for {
+		var ev interface{}
+		select {
+		case ev = <-rn.eventCh:
+		case <-rn.timeoutCh:
+			{
+				ev = TimeoutEv{}
+			}
+		}
+		actions := rn.sm.ProcessEvent(ev)
+		rn.doActions(actions)
+	}
+}
+
+func (rn *RaftNode) doActions(actions []interface{}) {
+	for _, action := range actions {
+		switch action.(type) {
+		case AlarmAc:
+			cmd := action.(AlarmAc)
+			rn.processAlarmAc(cmd)
+		case SendAc:
+			cmd := action.(SendAc)
+			rn.processSendAc(cmd)
+		case CommitAc:
+			cmd := action.(CommitAc)
+			rn.processCommitAc(cmd)
+		case LogStoreAc:
+			cmd := action.(LogStoreAc)
+			rn.processLogStoreAc(cmd)
+		case StateStoreAc:
+			cmd := actions.(StateStoreAc)
+			rn.processStateStoreAc(cmd)
+		default:
+			println("ERROR : Invalid Action Type")
+		}
+	}
+}
