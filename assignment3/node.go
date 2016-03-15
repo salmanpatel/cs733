@@ -5,13 +5,13 @@ type Node interface {
 	Append([]byte)
 
 	// A channel for client to listen on. What goes into Append must come out of here at some point.
-	CommitChannel() <- chan CommitInfo
+	CommitChannel() <-chan CommitInfo
 
 	// Last known committed index in the log. This could be -1 until the system stabilizes.
 	CommittedIndex() int
 
 	// Returns the data at a log index, or an error.
-	Get(index int) (err, []byte)
+	Get(index int) (error, []byte)
 
 	// Node's id
 	Id()
