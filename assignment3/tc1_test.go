@@ -83,6 +83,9 @@ func expectActions(t *testing.T, actualAc []interface{}, expectedAc []interface{
 func actionsEquality(actualAc []interface{}, expectedAc []interface{}) bool {
 	flag := false
 	for _, actVal := range actualAc {
+		if reflect.TypeOf(actVal) == reflect.TypeOf(AlarmAc{}) {
+			continue
+		}
 		for _, expVal := range expectedAc {
 			if reflect.TypeOf(actVal) == reflect.TypeOf(expVal) && reflect.DeepEqual(actVal, expVal) {
 				flag = true
@@ -109,7 +112,7 @@ func TestLeaderTO(t *testing.T) {
 	sm := &StateMachine{term: 3, state: "Leader", config: Config{999, []uint64{995, 996, 997, 998}}, nextIndex: []uint64{1, 3, 2, 1}, votedFor: 3, log: []LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}, commitIndex: 1}
 	outputAc := sm.ProcessEvent(TimeoutEv{})
 	expectSM(t, sm, &StateMachine{term: 3, state: "Leader", config: Config{999, []uint64{995, 996, 997, 998}}, nextIndex: []uint64{1, 3, 2, 1}, votedFor: 3, log: []LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}, commitIndex: 1}, "Leader TO")
-	expectActions(t, outputAc, []interface{}{SendAc{995, AppendEntriesReqEv{3, 999, 0, 1, []LogEntry{LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}, 1}}, SendAc{996, AppendEntriesReqEv{3, 999, 2, 2, []LogEntry{LogEntry{3, []byte("lm")}}, 1}}, SendAc{997, AppendEntriesReqEv{3, 999, 1, 2, []LogEntry{LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}, 1}}, SendAc{998, AppendEntriesReqEv{3, 999, 0, 1, []LogEntry{LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}, 1}}}, "Leader TO")
+	expectActions(t, outputAc, []interface{}{AlarmAc{150}, SendAc{995, AppendEntriesReqEv{3, 999, 0, 1, []LogEntry{LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}, 1}}, SendAc{996, AppendEntriesReqEv{3, 999, 2, 2, []LogEntry{LogEntry{3, []byte("lm")}}, 1}}, SendAc{997, AppendEntriesReqEv{3, 999, 1, 2, []LogEntry{LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}, 1}}, SendAc{998, AppendEntriesReqEv{3, 999, 0, 1, []LogEntry{LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}, LogEntry{3, []byte("lm")}}, 1}}}, "Leader TO")
 }
 
 func TestLeaderAppend(t *testing.T) {
@@ -130,7 +133,7 @@ func TestFollowerAppendEntriesReqSuccess(t *testing.T) {
 	sm := &StateMachine{state: "Follower", term: 4, votedFor: 995, log: []LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}}, config: Config{995, []uint64{999, 996, 997, 998}}, commitIndex: 2}
 	outputAc := sm.ProcessEvent(AppendEntriesReqEv{5, 999, 1, 2, []LogEntry{LogEntry{3, []byte("lm")}, LogEntry{4, []byte("four")}}, 3})
 	expectSM(t, sm, &StateMachine{state: "Follower", term: 5, votedFor: 0, log: []LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("lm")}, LogEntry{4, []byte("four")}}, config: Config{995, []uint64{999, 996, 997, 998}}, commitIndex: 3}, "Follower AppendEntriesReq with Success response")
-	expectActions(t, outputAc, []interface{}{AlarmAc{150}, StateStoreAc{5, "Follower", 0}, LogStoreAc{2, 3, []byte("lm")}, LogStoreAc{3, 4, []byte("four")}, SendAc{999, AppendEntriesResEv{995, 5, true}}}, "Follower AppendEntriesReq with Success response")
+	expectActions(t, outputAc, []interface{}{AlarmAc{150}, CommitAc{3, []byte("four"), nil}, StateStoreAc{5, "Follower", 0}, LogStoreAc{2, 3, []byte("lm")}, LogStoreAc{3, 4, []byte("four")}, SendAc{999, AppendEntriesResEv{995, 5, true}}}, "Follower AppendEntriesReq with Success response")
 }
 
 func TestFollowerAppendEntriesReqLogMismatch(t *testing.T) {
@@ -151,14 +154,14 @@ func TestFollowerAppendEntriesReqEmptyLog(t *testing.T) {
 	sm := &StateMachine{state: "Follower", term: 4, votedFor: 995, log: []LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}}, config: Config{995, []uint64{999, 996, 997, 998}}, commitIndex: 0}
 	outputAc := sm.ProcessEvent(AppendEntriesReqEv{5, 999, 0, 0, []LogEntry{LogEntry{3, []byte("lm")}, LogEntry{4, []byte("four")}}, 1})
 	expectSM(t, sm, &StateMachine{state: "Follower", term: 5, votedFor: 0, log: []LogEntry{LogEntry{3, []byte("lm")}, LogEntry{4, []byte("four")}}, config: Config{995, []uint64{999, 996, 997, 998}}, commitIndex: 1}, "Follower AppendEntriesReq - Empty Log")
-	expectActions(t, outputAc, []interface{}{AlarmAc{150}, StateStoreAc{5, "Follower", 0}, LogStoreAc{0, 3, []byte("lm")}, LogStoreAc{1, 4, []byte("four")}, SendAc{999, AppendEntriesResEv{995, 5, true}}}, "Follower AppendEntriesReq - Empty Log")
+	expectActions(t, outputAc, []interface{}{AlarmAc{150}, CommitAc{1, []byte("four"), nil}, StateStoreAc{5, "Follower", 0}, LogStoreAc{0, 3, []byte("lm")}, LogStoreAc{1, 4, []byte("four")}, SendAc{999, AppendEntriesResEv{995, 5, true}}}, "Follower AppendEntriesReq - Empty Log")
 }
 
 func TestLeaderAppendEntriesReqSuccess(t *testing.T) {
 	sm := &StateMachine{state: "Leader", term: 4, votedFor: 995, log: []LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{2, []byte("ghijk")}}, config: Config{995, []uint64{999, 996, 997, 998}}, commitIndex: 2}
 	outputAc := sm.ProcessEvent(AppendEntriesReqEv{5, 999, 1, 2, []LogEntry{LogEntry{3, []byte("lm")}, LogEntry{4, []byte("four")}}, 3})
 	expectSM(t, sm, &StateMachine{state: "Follower", term: 5, votedFor: 0, log: []LogEntry{LogEntry{1, []byte("abc")}, LogEntry{2, []byte("def")}, LogEntry{3, []byte("lm")}, LogEntry{4, []byte("four")}}, config: Config{995, []uint64{999, 996, 997, 998}}, commitIndex: 3}, "Leader AppendEntriesReq with Success response")
-	expectActions(t, outputAc, []interface{}{AlarmAc{150}, StateStoreAc{5, "Follower", 0}, LogStoreAc{2, 3, []byte("lm")}, LogStoreAc{3, 4, []byte("four")}, SendAc{999, AppendEntriesResEv{995, 5, true}}}, "Leader AppendEntriesReq with Success response")
+	expectActions(t, outputAc, []interface{}{AlarmAc{150}, CommitAc{3, []byte("four"), nil}, StateStoreAc{5, "Follower", 0}, LogStoreAc{2, 3, []byte("lm")}, LogStoreAc{3, 4, []byte("four")}, SendAc{999, AppendEntriesResEv{995, 5, true}}}, "Leader AppendEntriesReq with Success response")
 }
 
 func TestCandidateAppendEntriesReqFromLowerTerm(t *testing.T) {

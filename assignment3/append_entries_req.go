@@ -1,5 +1,7 @@
 package main
 
+import "math/rand"
+
 type AppendEntriesReqEv struct {
 	term         uint64
 	leaderId     uint64
@@ -37,7 +39,7 @@ func (sm *StateMachine) FollowerAppendEntriesReqEH(ev AppendEntriesReqEv) []inte
 			sm.votedFor = 0
 		}
 		sm.term = ev.term
-		actions = append(actions, AlarmAc{150})
+		actions = append(actions, AlarmAc{RandInt(150, 300)})
 		actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
 		if ev.prevLogTerm == 0 {
 			sm.log = ev.entries
@@ -46,7 +48,11 @@ func (sm *StateMachine) FollowerAppendEntriesReqEH(ev AppendEntriesReqEv) []inte
 			}
 			actions = append(actions, SendAc{ev.leaderId, AppendEntriesResEv{from: sm.config.serverId, term: sm.term, success: true}})
 			if ev.leaderCommit > sm.commitIndex {
-				sm.commitIndex = MinInt(ev.leaderCommit, uint64(len(sm.log)-1))
+				newCommitIndex := MinInt(ev.leaderCommit, uint64(len(sm.log)-1))
+				for i := sm.commitIndex + 1; i <= newCommitIndex; i++ {
+					actions = append(actions, CommitAc{i, sm.log[i].data, nil})
+				}
+				sm.commitIndex = newCommitIndex
 			}
 		} else if ev.prevLogIndex < uint64(len(sm.log)) && sm.log[ev.prevLogIndex].term == ev.prevLogTerm {
 			sm.log = sm.log[:ev.prevLogIndex+1]
@@ -56,7 +62,11 @@ func (sm *StateMachine) FollowerAppendEntriesReqEH(ev AppendEntriesReqEv) []inte
 			}
 			actions = append(actions, SendAc{ev.leaderId, AppendEntriesResEv{from: sm.config.serverId, term: sm.term, success: true}})
 			if ev.leaderCommit > sm.commitIndex {
-				sm.commitIndex = MinInt(ev.leaderCommit, uint64(len(sm.log)-1))
+				newCommitIndex := MinInt(ev.leaderCommit, uint64(len(sm.log)-1))
+				for i := sm.commitIndex + 1; i <= newCommitIndex; i++ {
+					actions = append(actions, CommitAc{i, sm.log[i].data, nil})
+				}
+				sm.commitIndex = newCommitIndex
 			}
 		} else {
 			actions = append(actions, SendAc{ev.leaderId, AppendEntriesResEv{from: sm.config.serverId, term: sm.term, success: false}})
@@ -80,4 +90,8 @@ func (sm *StateMachine) LeaderCandidateAppendEntriesReqEH(ev AppendEntriesReqEv)
 		actions = append(actions, SendAc{ev.leaderId, AppendEntriesResEv{from: sm.config.serverId, term: sm.term, success: false}})
 	}
 	return actions
+}
+
+func RandInt(min uint64, max uint64) uint64 {
+	return min + uint64(rand.Int63n(int64(max-min)))
 }

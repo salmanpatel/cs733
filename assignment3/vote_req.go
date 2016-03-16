@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+
 type VoteReqEv struct {
 	term         uint64
 	candidateId  uint64
@@ -25,12 +27,13 @@ func (sm *StateMachine) VoteReqEH(ev VoteReqEv) []interface{} {
 }*/
 
 func (sm *StateMachine) LeaderCandidateVoteReqEH(ev VoteReqEv) []interface{} {
+	fmt.Printf("LeaderCandidateVoteReqEH: Server Id = %v \n", sm.config.serverId)
 	var actions []interface{}
 	if sm.term < ev.term {
 		sm.term = ev.term
 		sm.votedFor = 0
 		sm.state = "Follower"
-		actions = append(actions, AlarmAc{150})
+		actions = append(actions, AlarmAc{RandInt(150, 300)})
 		if (sm.log[len(sm.log)-1].term < ev.lastLogTerm) || (sm.log[len(sm.log)-1].term == ev.lastLogTerm && uint64(len(sm.log)-1) <= ev.lastLogIndex) {
 			actions = append(actions, SendAc{ev.candidateId, VoteResEv{sm.term, true}})
 			sm.votedFor = ev.candidateId
@@ -45,6 +48,7 @@ func (sm *StateMachine) LeaderCandidateVoteReqEH(ev VoteReqEv) []interface{} {
 }
 
 func (sm *StateMachine) FollowerVoteReqEH(ev VoteReqEv) []interface{} {
+	fmt.Printf("FollowerVoteReqEH: Server Id = %v \n", sm.config.serverId)
 	var actions []interface{}
 	// votedFor = 0, means it has not voted for this term
 	flag := false
@@ -59,7 +63,7 @@ func (sm *StateMachine) FollowerVoteReqEH(ev VoteReqEv) []interface{} {
 				flag = true
 			}
 			sm.votedFor = ev.candidateId
-			actions = append(actions, AlarmAc{150})
+			actions = append(actions, AlarmAc{RandInt(150, 300)})
 			actions = append(actions, SendAc{ev.candidateId, VoteResEv{sm.term, true}})
 		} else {
 			actions = append(actions, SendAc{ev.candidateId, VoteResEv{sm.term, false}})

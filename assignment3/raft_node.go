@@ -2,14 +2,16 @@ package main
 
 import (
 	"encoding/gob"
+	"errors"
+	"fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
-	"os"
+	//	"os"
 	"time"
 )
 
-const logFile = "log"
-const stateFile = "state"
+const LogFile = "log"
+const StateFile = "state"
 
 // Raft Node Structure
 type RaftNode struct { // implements Node interface
@@ -18,7 +20,8 @@ type RaftNode struct { // implements Node interface
 	timeoutCh chan bool
 	commitCh  chan CommitInfo
 	nwHandler cluster.Server
-	parTOs    int
+	parTOs    uint64
+	logDir    string
 }
 
 type NetConfig struct {
@@ -32,8 +35,8 @@ type RaftNodeConfig struct {
 	cluster     []NetConfig // Information about all servers, including this.
 	id          uint64      // this node's id. One of the cluster's entries should match.
 	logDir      string      // Log file directory for this node
-	electionTO  int
-	heartbeatTO int
+	electionTO  uint64
+	heartbeatTO uint64
 }
 
 type CommitInfo struct {
@@ -43,9 +46,9 @@ type CommitInfo struct {
 }
 
 type PersistentStateAttrs struct {
-	term     uint64
-	state    string
-	votedFor uint64
+	Term     uint64
+	State    string
+	VotedFor uint64
 }
 
 func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {
@@ -54,6 +57,7 @@ func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {
 	rn.timeoutCh = make(chan bool)
 	rn.commitCh = make(chan CommitInfo, 100)
 	rn.parTOs = 0
+	rn.logDir = rnConfig.logDir
 
 	rn.initializeStateMachine(rnConfig)
 
@@ -67,11 +71,50 @@ func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {
 	gob.Register(AppendEntriesReqEv{})
 	gob.Register(AppendEntriesResEv{})
 
+	// Set initial election timeout
+	go func() {
+		time.Sleep(time.Millisecond * time.Duration(RandInt(150, 300)))
+		rn.timeoutCh <- true
+	}()
+
 	return rn
 }
 
+// A channel for client to listen on. What goes into Append must come out of here at some point.
+func (rn *RaftNode) CommitChannel() <-chan CommitInfo {
+	return rn.commitCh
+}
+
+// Last known committed index in the log. This could be -1 until the system stabilizes.
+func (rn *RaftNode) CommittedIndex() uint64 {
+	return rn.sm.commitIndex
+}
+
+// Returns the data at a log index, or an error.
+func (rn *RaftNode) Get(index int) (error, []byte) {
+	if index >= len(rn.sm.log) {
+		return errors.New("Invalid Index"), nil
+	}
+	return nil, rn.sm.log[index].data
+}
+
+// Node's id
+func (rn *RaftNode) Id() uint64 {
+	return rn.sm.config.serverId
+}
+
+// Id of leader. -1 if unknown
+func (rn *RaftNode) LeaderId() uint64 {
+	return rn.sm.votedFor
+}
+
+// Signal to shut down all goroutines, stop sockets, flush log and close it, cancel timers.
+func (rn *RaftNode) Shutdown() {
+	rn.nwHandler.Close()
+}
+
 func (rn *RaftNode) initializeLog(rnConfig RaftNodeConfig) int64 {
-	logFP, err := log.Open(rnConfig.logDir + "/" + logFile)
+	logFP, err := log.Open(rnConfig.logDir + "/" + LogFile)
 	logFP.RegisterSampleEntry(LogEntry{})
 	assert(err == nil)
 	defer logFP.Close()
@@ -92,53 +135,59 @@ func (rn *RaftNode) initializeStateMachine(rnConfig RaftNodeConfig) {
 	totLogEntrs := rn.initializeLog(rnConfig)
 	rn.sm.commitIndex = 0
 	rn.sm.config.serverId = rnConfig.id
-	for index, nodeConfig := range rnConfig.cluster {
+	fmt.Printf("length of cluseter = %v \n", len(rnConfig.cluster))
+	for _, nodeConfig := range rnConfig.cluster {
 		if nodeConfig.id != rnConfig.id {
 			rn.sm.config.peerIds = append(rn.sm.config.peerIds, nodeConfig.id)
-			rn.sm.nextIndex[index] = uint64(totLogEntrs)
-			rn.sm.matchIndex[index] = 0
+			rn.sm.nextIndex = append(rn.sm.nextIndex, uint64(totLogEntrs))
+			rn.sm.matchIndex = append(rn.sm.matchIndex, 0)
 		}
 	}
 	rn.sm.yesVotes = 0
 	rn.sm.noVotes = 0
 	// State preserving file does not exist
-	if _, err := os.Stat(rnConfig.logDir + "/" + stateFile); os.IsNotExist(err) {
+	/*	if _, err := os.Stat(rnConfig.logDir + "/" + StateFile); os.IsNotExist(err) {
 		//		rmlog(rnConfig.logDir)
 		rn.sm.state = "Follower"
 		rn.sm.term = 0
 		rn.sm.votedFor = 0
-	} else {
-		// read from a file
-		stateAttrsFP, err := log.Open(rnConfig.logDir + "/" + stateFile)
-		stateAttrsFP.RegisterSampleEntry(PersistentStateAttrs{})
-		assert(err == nil)
-		defer stateAttrsFP.Close()
-		i := stateAttrsFP.GetLastIndex() // should return 1
-		assert(i == 1)
-		res, err := stateAttrsFP.Get(i)
-		assert(err == nil)
-		stateAttrs, ok := res.(PersistentStateAttrs)
-		assert(ok)
-		rn.sm.state = stateAttrs.state
-		rn.sm.term = stateAttrs.term
-		rn.sm.votedFor = stateAttrs.votedFor
-	}
+	} else {*/
+	// read from a file
+	stateAttrsFP, err := log.Open(rnConfig.logDir + "/" + StateFile)
+	stateAttrsFP.RegisterSampleEntry(PersistentStateAttrs{})
+	assert(err == nil)
+	defer stateAttrsFP.Close()
+	i := stateAttrsFP.GetLastIndex() // should return 0
+	// fmt.Printf("initializeStateMachine: last index = %v\n", i)
+	assert(i == 0)
+	res, err := stateAttrsFP.Get(0)
+	assert(err == nil)
+	stateAttrs, ok := res.(PersistentStateAttrs)
+	assert(ok)
+	rn.sm.state = stateAttrs.State
+	rn.sm.term = stateAttrs.Term
+	rn.sm.votedFor = stateAttrs.VotedFor
+	//}
 }
 
 // Process Append request from client
 func (rn *RaftNode) Append(data []byte) {
+	fmt.Println("Append Called")
 	rn.eventCh <- AppendEv{data}
+	fmt.Println("appended to channel")
 }
 
 // Process all Events on State Machine
-func (rn *RaftNode) processEvents(logDir string) {
+func (rn *RaftNode) processEvents() {
 	for {
 		var ev interface{}
 		select {
 		case ev = <-rn.eventCh:
 		case <-rn.timeoutCh:
+			fmt.Println("Timeout Event Received")
 			ev = TimeoutEv{}
 		case inboxEv := <-rn.nwHandler.Inbox():
+			fmt.Printf("Event Received ")
 			switch inboxEv.Msg.(type) {
 			case AppendEntriesReqEv:
 				rn.eventCh <- inboxEv.Msg.(AppendEntriesReqEv)
@@ -150,94 +199,36 @@ func (rn *RaftNode) processEvents(logDir string) {
 				rn.eventCh <- inboxEv.Msg.(VoteResEv)
 			}
 			continue
-		default:
-			println("Unrecognized Event")
 		}
 		actions := rn.sm.ProcessEvent(ev)
-		rn.doActions(actions, logDir)
+		fmt.Printf("%v actions length = %v \n", rn.Id(), len(actions))
+		rn.doActions(actions)
 	}
 }
 
 // Process all Actions generated due to processing of an event
-func (rn *RaftNode) doActions(actions []interface{}, logDir string) {
+func (rn *RaftNode) doActions(actions []interface{}) {
+	fmt.Printf("%v actions called %v \n", rn.Id(), actions)
 	for _, action := range actions {
 		switch action.(type) {
 		case AlarmAc:
 			rn.parTOs += 1
 			cmd := action.(AlarmAc)
-			rn.processAlarmAc(cmd)
+			rn.ProcessAlarmAc(cmd)
 		case SendAc:
 			cmd := action.(SendAc)
-			rn.processSendAc(cmd)
+			rn.ProcessSendAc(cmd)
 		case CommitAc:
 			cmd := action.(CommitAc)
-			rn.processCommitAc(cmd)
+			rn.ProcessCommitAc(cmd)
 		case LogStoreAc:
 			cmd := action.(LogStoreAc)
-			rn.processLogStoreAc(cmd, logDir)
+			rn.ProcessLogStoreAc(cmd)
 		case StateStoreAc:
 			cmd := action.(StateStoreAc)
-			rn.processStateStoreAc(cmd, logDir)
+			rn.ProcessStateStoreAc(cmd)
 		default:
 			println("ERROR : Invalid Action Type")
 		}
-	}
-}
-
-// Process Alarm action - by generating timer
-func (rn *RaftNode) processAlarmAc(action AlarmAc) {
-	beforeParTOs := rn.parTOs
-	time.Sleep(time.Millisecond * time.Duration(action.time))
-	// No timer reset
-	if beforeParTOs == rn.parTOs {
-		rn.timeoutCh <- true
-	}
-}
-
-func (rn *RaftNode) processSendAc(action SendAc) {
-	switch action.event.(type) {
-	case AppendEntriesReqEv:
-		rn.nwHandler.Outbox() <- &cluster.Envelope{Pid: int(action.peerId), Msg: action.event.(AppendEntriesReqEv)}
-	case AppendEntriesResEv:
-		rn.nwHandler.Outbox() <- &cluster.Envelope{Pid: int(action.peerId), Msg: action.event.(AppendEntriesResEv)}
-	case VoteReqEv:
-		rn.nwHandler.Outbox() <- &cluster.Envelope{Pid: int(action.peerId), Msg: action.event.(VoteReqEv)}
-	case VoteResEv:
-		rn.nwHandler.Outbox() <- &cluster.Envelope{Pid: int(action.peerId), Msg: action.event.(VoteResEv)}
-	default:
-		println("Unrecognized Event")
-	}
-}
-
-func (rn *RaftNode) processCommitAc(action CommitAc) {
-	var ci CommitInfo
-	ci.index = action.index
-	ci.data = action.data
-	ci.err = action.err
-	rn.commitCh <- ci
-}
-
-func (rn *RaftNode) processLogStoreAc(action LogStoreAc, logDir string) {
-	logFP, err := log.Open(logDir + "/" + logFile)
-	logFP.RegisterSampleEntry(LogEntry{})
-	assert(err == nil)
-	defer logFP.Close()
-	assert(uint64(logFP.GetLastIndex()+1) >= action.index)
-	logFP.TruncateToEnd(int64(action.index))
-	logFP.Append(LogEntry{action.term, action.data})
-}
-
-func (rn *RaftNode) processStateStoreAc(action StateStoreAc, logDir string) {
-	stateAttrsFP, err := log.Open(logDir + "/" + stateFile)
-	stateAttrsFP.RegisterSampleEntry(PersistentStateAttrs{})
-	assert(err == nil)
-	defer stateAttrsFP.Close()
-	stateAttrsFP.TruncateToEnd(0) // Flush previous state
-	stateAttrsFP.Append(PersistentStateAttrs{action.term, action.state, action.votedFor})
-}
-
-func assert(val bool) {
-	if !val {
-		panic("Assertion Failed")
 	}
 }

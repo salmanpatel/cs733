@@ -35,7 +35,7 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) []interf
 			sm.term = ev.term
 			sm.votedFor = 0
 			sm.state = "Follower"
-			actions = append(actions, AlarmAc{150})
+			actions = append(actions, AlarmAc{RandInt(150, 300)})
 			actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
 		} else {
 			// Valid Leader - Mismatch in prevIndex entry

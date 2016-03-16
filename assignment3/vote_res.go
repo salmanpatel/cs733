@@ -1,6 +1,6 @@
 package main
 
-//import "fmt"
+import "fmt"
 
 type VoteResEv struct {
 	term        uint64
@@ -44,19 +44,20 @@ func (sm *StateMachine) CandidateVoteResEH(ev VoteResEv) []interface{} {
 		if sm.yesVotes >= uint64(majority) {
 			flag = true
 			sm.state = "Leader"
+			fmt.Printf("Leader elected : Server Id = %v \n", sm.config.serverId)
 			for i := 0; i < len(sm.config.peerIds); i++ {
 				sm.nextIndex[i] = uint64(len(sm.log))
 				sm.matchIndex[i] = 0
 				actions = append(actions, SendAc{sm.config.peerIds[i], AppendEntriesReqEv{sm.term, sm.config.serverId, uint64(len(sm.log) - 1), sm.log[len(sm.log)-1].term, nil, sm.commitIndex}})
 			}
-			actions = append(actions, AlarmAc{150})
+			actions = append(actions, AlarmAc{RandInt(75, 150)})
 		}
 	} else if ev.term > sm.term {
 		flag = true
 		sm.term = ev.term
 		sm.state = "Follower"
 		sm.votedFor = 0
-		actions = append(actions, AlarmAc{150})
+		actions = append(actions, AlarmAc{RandInt(150, 300)})
 	} else {
 		sm.noVotes++
 		if sm.noVotes >= uint64(majority) {
