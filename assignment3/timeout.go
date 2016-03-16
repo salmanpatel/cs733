@@ -31,8 +31,12 @@ func (sm *StateMachine) FollowerCandidateTimeoutEH(ev TimeoutEv) []interface{} {
 	actions = append(actions, AlarmAc{RandInt(150, 300)})
 	fmt.Printf("Length : %v \n", len(sm.config.peerIds))
 	for i := 0; i < len(sm.config.peerIds); i++ {
+		term := int64(0)
+		if len(sm.log) != 0 {
+			term = sm.log[len(sm.log)-1].term
+		}
 		fmt.Printf("Generating Vote req event : %v \n", sm.config.peerIds[i])
-		actions = append(actions, SendAc{sm.config.peerIds[i], VoteReqEv{sm.term, sm.config.serverId, uint64(len(sm.log) - 1), sm.log[len(sm.log)-1].term}})
+		actions = append(actions, SendAc{sm.config.peerIds[i], VoteReqEv{sm.term, sm.config.serverId, int64(len(sm.log) - 1), term}})
 	}
 	sm.yesVotes = 1
 	return actions

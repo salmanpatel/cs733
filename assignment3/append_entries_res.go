@@ -1,8 +1,8 @@
 package main
 
 type AppendEntriesResEv struct {
-	from    uint64
-	term    uint64
+	from    int64
+	term    int64
 	success bool
 }
 
@@ -22,10 +22,10 @@ func (sm *StateMachine) AppendEntriesResEH(ev AppendEntriesResEv) []interface{} 
 func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) []interface{} {
 	var actions []interface{}
 	// Find index of peer
-	var fromIndex uint64
+	var fromIndex int64
 	for i := 0; i < len(sm.config.peerIds); i++ {
 		if sm.config.peerIds[i] == ev.from {
-			fromIndex = uint64(i)
+			fromIndex = int64(i)
 			break
 		}
 	}
@@ -40,7 +40,7 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) []interf
 		} else {
 			// Valid Leader - Mismatch in prevIndex entry
 			sm.nextIndex[fromIndex]--
-			prevTerm := uint64(0)
+			prevTerm := int64(0)
 			if sm.nextIndex[fromIndex] != 0 {
 				prevTerm = sm.log[sm.nextIndex[fromIndex]-1].term
 			}
@@ -48,8 +48,8 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) []interf
 		}
 	} else {
 		// Update sm.matchIndex[msg.from] to the last replicated index
-		sm.matchIndex[fromIndex] = uint64(len(sm.log)) - 1
-		sm.nextIndex[fromIndex] = uint64(len(sm.log))
+		sm.matchIndex[fromIndex] = int64(len(sm.log)) - 1
+		sm.nextIndex[fromIndex] = int64(len(sm.log))
 		maxCommitIndex := sm.commitIndex
 		totFol := 1
 		majority := len(sm.config.peerIds)/2 + 1

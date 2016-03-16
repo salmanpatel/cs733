@@ -1,28 +1,28 @@
 package main
 
 type SendAc struct {
-	peerId uint64
+	peerId int64
 	event  interface{}
 }
 
 type CommitAc struct {
-	index uint64
+	index int64
 	data  []byte
 	err   error
 }
 
 type AlarmAc struct {
-	time uint64
+	time int64
 }
 
 type LogStoreAc struct {
-	index uint64
-	term  uint64
+	index int64
+	term  int64
 	data  []byte
 }
 
 type StateStoreAc struct {
-	term     uint64
+	term     int64
 	state    string
-	votedFor uint64
+	votedFor int64
 }

@@ -5,6 +5,6 @@ package main
 )*/
 
 type Config struct {
-	serverId uint64
-	peerIds  []uint64
+	serverId int64
+	peerIds  []int64
 }

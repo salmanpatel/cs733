@@ -3,15 +3,15 @@ package main
 import "math/rand"
 
 type AppendEntriesReqEv struct {
-	term         uint64
-	leaderId     uint64
-	prevLogIndex uint64
-	prevLogTerm  uint64
+	term         int64
+	leaderId     int64
+	prevLogIndex int64
+	prevLogTerm  int64
 	entries      []LogEntry
-	leaderCommit uint64
+	leaderCommit int64
 }
 
-func MinInt(a, b uint64) uint64 {
+func MinInt(a, b int64) int64 {
 	if a < b {
 		return a
 	} else {
@@ -44,25 +44,25 @@ func (sm *StateMachine) FollowerAppendEntriesReqEH(ev AppendEntriesReqEv) []inte
 		if ev.prevLogTerm == 0 {
 			sm.log = ev.entries
 			for i := 0; i < len(ev.entries); i++ {
-				actions = append(actions, LogStoreAc{uint64(i), ev.entries[i].term, ev.entries[i].data})
+				actions = append(actions, LogStoreAc{int64(i), ev.entries[i].term, ev.entries[i].data})
 			}
 			actions = append(actions, SendAc{ev.leaderId, AppendEntriesResEv{from: sm.config.serverId, term: sm.term, success: true}})
 			if ev.leaderCommit > sm.commitIndex {
-				newCommitIndex := MinInt(ev.leaderCommit, uint64(len(sm.log)-1))
+				newCommitIndex := MinInt(ev.leaderCommit, int64(len(sm.log)-1))
 				for i := sm.commitIndex + 1; i <= newCommitIndex; i++ {
 					actions = append(actions, CommitAc{i, sm.log[i].data, nil})
 				}
 				sm.commitIndex = newCommitIndex
 			}
-		} else if ev.prevLogIndex < uint64(len(sm.log)) && sm.log[ev.prevLogIndex].term == ev.prevLogTerm {
+		} else if ev.prevLogIndex < int64(len(sm.log)) && sm.log[ev.prevLogIndex].term == ev.prevLogTerm {
 			sm.log = sm.log[:ev.prevLogIndex+1]
 			sm.log = append(sm.log, ev.entries...)
 			for i := 0; i < len(ev.entries); i++ {
-				actions = append(actions, LogStoreAc{ev.prevLogIndex + uint64(i) + 1, ev.entries[i].term, ev.entries[i].data})
+				actions = append(actions, LogStoreAc{ev.prevLogIndex + int64(i) + 1, ev.entries[i].term, ev.entries[i].data})
 			}
 			actions = append(actions, SendAc{ev.leaderId, AppendEntriesResEv{from: sm.config.serverId, term: sm.term, success: true}})
 			if ev.leaderCommit > sm.commitIndex {
-				newCommitIndex := MinInt(ev.leaderCommit, uint64(len(sm.log)-1))
+				newCommitIndex := MinInt(ev.leaderCommit, int64(len(sm.log)-1))
 				for i := sm.commitIndex + 1; i <= newCommitIndex; i++ {
 					actions = append(actions, CommitAc{i, sm.log[i].data, nil})
 				}
@@ -92,6 +92,6 @@ func (sm *StateMachine) LeaderCandidateAppendEntriesReqEH(ev AppendEntriesReqEv)
 	return actions
 }
 
-func RandInt(min uint64, max uint64) uint64 {
-	return min + uint64(rand.Int63n(int64(max-min)))
+func RandInt(min int64, max int64) int64 {
+	return min + int64(rand.Int63n(int64(max-min)))
 }

@@ -20,12 +20,12 @@ type RaftNode struct { // implements Node interface
 	timeoutCh chan bool
 	commitCh  chan CommitInfo
 	nwHandler cluster.Server
-	parTOs    uint64
+	parTOs    int64
 	logDir    string
 }
 
 type NetConfig struct {
-	id   uint64
+	id   int64
 	host string
 	port int
 }
@@ -33,22 +33,22 @@ type NetConfig struct {
 // Raft Node Configuration
 type RaftNodeConfig struct {
 	cluster     []NetConfig // Information about all servers, including this.
-	id          uint64      // this node's id. One of the cluster's entries should match.
+	id          int64       // this node's id. One of the cluster's entries should match.
 	logDir      string      // Log file directory for this node
-	electionTO  uint64
-	heartbeatTO uint64
+	electionTO  int64
+	heartbeatTO int64
 }
 
 type CommitInfo struct {
-	index uint64
+	index int64
 	data  []byte
 	err   error
 }
 
 type PersistentStateAttrs struct {
-	Term     uint64
+	Term     int64
 	State    string
-	VotedFor uint64
+	VotedFor int64
 }
 
 func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {
@@ -86,7 +86,7 @@ func (rn *RaftNode) CommitChannel() <-chan CommitInfo {
 }
 
 // Last known committed index in the log. This could be -1 until the system stabilizes.
-func (rn *RaftNode) CommittedIndex() uint64 {
+func (rn *RaftNode) CommittedIndex() int64 {
 	return rn.sm.commitIndex
 }
 
@@ -99,12 +99,12 @@ func (rn *RaftNode) Get(index int) (error, []byte) {
 }
 
 // Node's id
-func (rn *RaftNode) Id() uint64 {
+func (rn *RaftNode) Id() int64 {
 	return rn.sm.config.serverId
 }
 
 // Id of leader. -1 if unknown
-func (rn *RaftNode) LeaderId() uint64 {
+func (rn *RaftNode) LeaderId() int64 {
 	return rn.sm.votedFor
 }
 
@@ -139,7 +139,7 @@ func (rn *RaftNode) initializeStateMachine(rnConfig RaftNodeConfig) {
 	for _, nodeConfig := range rnConfig.cluster {
 		if nodeConfig.id != rnConfig.id {
 			rn.sm.config.peerIds = append(rn.sm.config.peerIds, nodeConfig.id)
-			rn.sm.nextIndex = append(rn.sm.nextIndex, uint64(totLogEntrs))
+			rn.sm.nextIndex = append(rn.sm.nextIndex, int64(totLogEntrs))
 			rn.sm.matchIndex = append(rn.sm.matchIndex, 0)
 		}
 	}

@@ -3,7 +3,7 @@ package main
 import "fmt"
 
 type VoteResEv struct {
-	term        uint64
+	term        int64
 	voteGranted bool
 }
 
@@ -41,14 +41,14 @@ func (sm *StateMachine) CandidateVoteResEH(ev VoteResEv) []interface{} {
 	flag := false
 	if ev.voteGranted {
 		sm.yesVotes += 1
-		if sm.yesVotes >= uint64(majority) {
+		if sm.yesVotes >= int64(majority) {
 			flag = true
 			sm.state = "Leader"
 			fmt.Printf("Leader elected : Server Id = %v \n", sm.config.serverId)
 			for i := 0; i < len(sm.config.peerIds); i++ {
-				sm.nextIndex[i] = uint64(len(sm.log))
+				sm.nextIndex[i] = int64(len(sm.log))
 				sm.matchIndex[i] = 0
-				actions = append(actions, SendAc{sm.config.peerIds[i], AppendEntriesReqEv{sm.term, sm.config.serverId, uint64(len(sm.log) - 1), sm.log[len(sm.log)-1].term, nil, sm.commitIndex}})
+				actions = append(actions, SendAc{sm.config.peerIds[i], AppendEntriesReqEv{sm.term, sm.config.serverId, int64(len(sm.log) - 1), sm.log[len(sm.log)-1].term, nil, sm.commitIndex}})
 			}
 			actions = append(actions, AlarmAc{RandInt(75, 150)})
 		}
@@ -60,7 +60,7 @@ func (sm *StateMachine) CandidateVoteResEH(ev VoteResEv) []interface{} {
 		actions = append(actions, AlarmAc{RandInt(150, 300)})
 	} else {
 		sm.noVotes++
-		if sm.noVotes >= uint64(majority) {
+		if sm.noVotes >= int64(majority) {
 			flag = true
 			sm.state = "Follower"
 			actions = append(actions, AlarmAc{150})

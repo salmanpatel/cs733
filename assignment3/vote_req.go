@@ -3,10 +3,10 @@ package main
 import "fmt"
 
 type VoteReqEv struct {
-	term         uint64
-	candidateId  uint64
-	lastLogIndex uint64
-	lastLogTerm  uint64
+	term         int64
+	candidateId  int64
+	lastLogIndex int64
+	lastLogTerm  int64
 }
 
 func (sm *StateMachine) VoteReqEH(ev VoteReqEv) []interface{} {
@@ -34,7 +34,7 @@ func (sm *StateMachine) LeaderCandidateVoteReqEH(ev VoteReqEv) []interface{} {
 		sm.votedFor = 0
 		sm.state = "Follower"
 		actions = append(actions, AlarmAc{RandInt(150, 300)})
-		if (sm.log[len(sm.log)-1].term < ev.lastLogTerm) || (sm.log[len(sm.log)-1].term == ev.lastLogTerm && uint64(len(sm.log)-1) <= ev.lastLogIndex) {
+		if (sm.log[len(sm.log)-1].term < ev.lastLogTerm) || (sm.log[len(sm.log)-1].term == ev.lastLogTerm && int64(len(sm.log)-1) <= ev.lastLogIndex) {
 			actions = append(actions, SendAc{ev.candidateId, VoteResEv{sm.term, true}})
 			sm.votedFor = ev.candidateId
 		} else {
@@ -58,7 +58,7 @@ func (sm *StateMachine) FollowerVoteReqEH(ev VoteReqEv) []interface{} {
 			sm.term = ev.term
 			flag = true
 		}
-		if (sm.log[len(sm.log)-1].term < ev.lastLogTerm) || (sm.log[len(sm.log)-1].term == ev.lastLogTerm && uint64(len(sm.log)-1) <= ev.lastLogIndex) {
+		if (sm.log[len(sm.log)-1].term < ev.lastLogTerm) || (sm.log[len(sm.log)-1].term == ev.lastLogTerm && int64(len(sm.log)-1) <= ev.lastLogIndex) {
 			if sm.term < ev.term {
 				flag = true
 			}

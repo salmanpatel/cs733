@@ -1,10 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
 	"time"
-	"fmt"
 )
 
 // Process Alarm action - by generating timer
@@ -46,7 +46,7 @@ func (rn *RaftNode) ProcessLogStoreAc(action LogStoreAc) {
 	logFP.RegisterSampleEntry(LogEntry{})
 	assert(err == nil)
 	defer logFP.Close()
-	assert(uint64(logFP.GetLastIndex()+1) >= action.index)
+	assert(int64(logFP.GetLastIndex()+1) >= action.index)
 	logFP.TruncateToEnd(int64(action.index))
 	logFP.Append(LogEntry{action.term, action.data})
 }
