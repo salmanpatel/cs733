@@ -1,6 +1,6 @@
 package main
 
-import "fmt"
+//import "fmt"
 
 type AppendEntriesResEv struct {
 	From    int64
@@ -31,7 +31,7 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) []interf
 			break
 		}
 	}
-	fmt.Printf("%v LeaderAppendEntriesResEH: response:%v, from=%v, sm.nextIndex[fromIndex]=%v \n", sm.config.serverId, ev, ev.From, sm.nextIndex[fromIndex])
+	// fmt.Printf("%v LeaderAppendEntriesResEH: response:%v, from=%v, sm.nextIndex[fromIndex]=%v \n", sm.config.serverId, ev, ev.From, sm.nextIndex[fromIndex])
 	// Append Entry Failure
 	if !ev.Success {
 		if sm.term < ev.Term {

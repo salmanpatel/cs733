@@ -4,12 +4,12 @@ package main
 import (
 	"encoding/gob"
 	"errors"
-	"fmt"
+//	"fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
 	//	"os"
 	"time"
-	"reflect"
+//	"reflect"
 )
 
 const LogFile = "log"
@@ -176,9 +176,9 @@ func (rn *RaftNode) initializeStateMachine(rnConfig RaftNodeConfig) {
 
 // Process Append request from client
 func (rn *RaftNode) Append(data []byte) {
-	fmt.Println("Append Called")
+	// fmt.Println("Append Called")
 	rn.eventCh <- AppendEv{data}
-	fmt.Println("appended to channel")
+	// fmt.Println("appended to channel")
 }
 
 // Process all Events on State Machine
@@ -188,10 +188,10 @@ func (rn *RaftNode) processEvents() {
 		select {
 		case ev = <-rn.eventCh:
 		case <-rn.timeoutCh:
-			fmt.Printf("%v Timeout\n", rn.Id())
+			// fmt.Printf("%v Timeout\n", rn.Id())
 			ev = TimeoutEv{}
 		case inboxEv := <-rn.nwHandler.Inbox():
-			fmt.Printf("%v received: %v \n", rn.Id(), reflect.TypeOf(inboxEv.Msg))
+			// fmt.Printf("%v received: %v \n", rn.Id(), reflect.TypeOf(inboxEv.Msg))
 			switch inboxEv.Msg.(type) {
 			case AppendEntriesReqEv:
 				rn.eventCh <- inboxEv.Msg.(AppendEntriesReqEv)
@@ -205,7 +205,7 @@ func (rn *RaftNode) processEvents() {
 			continue
 		}
 		actions := rn.sm.ProcessEvent(ev)
-		fmt.Printf("%v event: %v, actions: %v \n", rn.Id(), reflect.TypeOf(ev),actions)
+		// fmt.Printf("%v event: %v, actions: %v \n", rn.Id(), reflect.TypeOf(ev),actions)
 		rn.doActions(actions)
 	}
 }
