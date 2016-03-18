@@ -1,9 +1,11 @@
 package main
 
+import "fmt"
+
 type AppendEntriesResEv struct {
-	from    int64
-	term    int64
-	success bool
+	From    int64
+	Term    int64
+	Success bool
 }
 
 func (sm *StateMachine) AppendEntriesResEH(ev AppendEntriesResEv) []interface{} {
@@ -24,27 +26,28 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) []interf
 	// Find index of peer
 	var fromIndex int64
 	for i := 0; i < len(sm.config.peerIds); i++ {
-		if sm.config.peerIds[i] == ev.from {
+		if sm.config.peerIds[i] == ev.From {
 			fromIndex = int64(i)
 			break
 		}
 	}
+	fmt.Printf("%v LeaderAppendEntriesResEH: response:%v, from=%v, sm.nextIndex[fromIndex]=%v \n", sm.config.serverId, ev, ev.From, sm.nextIndex[fromIndex])
 	// Append Entry Failure
-	if !ev.success {
-		if sm.term < ev.term {
-			sm.term = ev.term
+	if !ev.Success {
+		if sm.term < ev.Term {
+			sm.term = ev.Term
 			sm.votedFor = 0
 			sm.state = "Follower"
-			actions = append(actions, AlarmAc{RandInt(150, 300)})
+			actions = append(actions, AlarmAc{RandInt(sm.electionTO)})
 			actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
 		} else {
 			// Valid Leader - Mismatch in prevIndex entry
 			sm.nextIndex[fromIndex]--
 			prevTerm := int64(0)
 			if sm.nextIndex[fromIndex] != 0 {
-				prevTerm = sm.log[sm.nextIndex[fromIndex]-1].term
+				prevTerm = sm.log[sm.nextIndex[fromIndex]-1].Term
 			}
-			actions = append(actions, SendAc{ev.from, AppendEntriesReqEv{sm.term, sm.config.serverId, sm.nextIndex[fromIndex] - 1, prevTerm, sm.log[sm.nextIndex[fromIndex]:], sm.commitIndex}})
+			actions = append(actions, SendAc{ev.From, AppendEntriesReqEv{sm.term, sm.config.serverId, sm.nextIndex[fromIndex] - 1, prevTerm, sm.log[sm.nextIndex[fromIndex]:], sm.commitIndex}})
 		}
 	} else {
 		// Update sm.matchIndex[msg.from] to the last replicated index
@@ -68,9 +71,9 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) []interf
 			}
 		}
 		// Update Commitindex and send commit action to clients
-		if maxCommitIndex > sm.commitIndex && sm.log[maxCommitIndex].term == sm.term {
+		if maxCommitIndex > sm.commitIndex && sm.log[maxCommitIndex].Term == sm.term {
 			for i := sm.commitIndex + 1; i <= maxCommitIndex; i++ {
-				actions = append(actions, CommitAc{i, sm.log[i].data, nil})
+				actions = append(actions, CommitAc{i, sm.log[i].Data, nil})
 			}
 			sm.commitIndex = maxCommitIndex
 		}
@@ -80,8 +83,8 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) []interf
 
 func (sm *StateMachine) FollowerCandidateAppendEntriesResEH(ev AppendEntriesResEv) []interface{} {
 	var actions []interface{}
-	if ev.term > sm.term {
-		sm.term = ev.term
+	if ev.Term > sm.term {
+		sm.term = ev.Term
 		sm.votedFor = 0
 		sm.state = "Follower"
 		actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})

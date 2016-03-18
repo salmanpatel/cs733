@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -8,6 +9,7 @@ import (
 	"github.com/cs733-iitb/log"
 	//	"os"
 	"time"
+	"reflect"
 )
 
 const LogFile = "log"
@@ -73,7 +75,7 @@ func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {
 
 	// Set initial election timeout
 	go func() {
-		time.Sleep(time.Millisecond * time.Duration(RandInt(150, 300)))
+		time.Sleep(time.Millisecond * time.Duration(RandInt(rn.sm.electionTO)))
 		rn.timeoutCh <- true
 	}()
 
@@ -95,7 +97,7 @@ func (rn *RaftNode) Get(index int) (error, []byte) {
 	if index >= len(rn.sm.log) {
 		return errors.New("Invalid Index"), nil
 	}
-	return nil, rn.sm.log[index].data
+	return nil, rn.sm.log[index].Data
 }
 
 // Node's id
@@ -133,9 +135,9 @@ func (rn *RaftNode) initializeLog(rnConfig RaftNodeConfig) int64 {
 
 func (rn *RaftNode) initializeStateMachine(rnConfig RaftNodeConfig) {
 	totLogEntrs := rn.initializeLog(rnConfig)
-	rn.sm.commitIndex = 0
+	rn.sm.commitIndex = -1
 	rn.sm.config.serverId = rnConfig.id
-	fmt.Printf("length of cluseter = %v \n", len(rnConfig.cluster))
+	// fmt.Printf("length of cluseter = %v \n", len(rnConfig.cluster))
 	for _, nodeConfig := range rnConfig.cluster {
 		if nodeConfig.id != rnConfig.id {
 			rn.sm.config.peerIds = append(rn.sm.config.peerIds, nodeConfig.id)
@@ -145,6 +147,8 @@ func (rn *RaftNode) initializeStateMachine(rnConfig RaftNodeConfig) {
 	}
 	rn.sm.yesVotes = 0
 	rn.sm.noVotes = 0
+	rn.sm.electionTO = rnConfig.electionTO
+	rn.sm.heartbeatTO = rnConfig.heartbeatTO
 	// State preserving file does not exist
 	/*	if _, err := os.Stat(rnConfig.logDir + "/" + StateFile); os.IsNotExist(err) {
 		//		rmlog(rnConfig.logDir)
@@ -184,10 +188,10 @@ func (rn *RaftNode) processEvents() {
 		select {
 		case ev = <-rn.eventCh:
 		case <-rn.timeoutCh:
-			fmt.Println("Timeout Event Received")
+			fmt.Printf("%v Timeout\n", rn.Id())
 			ev = TimeoutEv{}
 		case inboxEv := <-rn.nwHandler.Inbox():
-			fmt.Printf("Event Received ")
+			fmt.Printf("%v received: %v \n", rn.Id(), reflect.TypeOf(inboxEv.Msg))
 			switch inboxEv.Msg.(type) {
 			case AppendEntriesReqEv:
 				rn.eventCh <- inboxEv.Msg.(AppendEntriesReqEv)
@@ -201,20 +205,20 @@ func (rn *RaftNode) processEvents() {
 			continue
 		}
 		actions := rn.sm.ProcessEvent(ev)
-		fmt.Printf("%v actions length = %v \n", rn.Id(), len(actions))
+		fmt.Printf("%v event: %v, actions: %v \n", rn.Id(), reflect.TypeOf(ev),actions)
 		rn.doActions(actions)
 	}
 }
 
 // Process all Actions generated due to processing of an event
 func (rn *RaftNode) doActions(actions []interface{}) {
-	fmt.Printf("%v actions called %v \n", rn.Id(), actions)
+	// fmt.Printf("%v actions called %v \n", rn.Id(), actions)
 	for _, action := range actions {
 		switch action.(type) {
 		case AlarmAc:
 			rn.parTOs += 1
 			cmd := action.(AlarmAc)
-			rn.ProcessAlarmAc(cmd)
+			go rn.ProcessAlarmAc(cmd)
 		case SendAc:
 			cmd := action.(SendAc)
 			rn.ProcessSendAc(cmd)

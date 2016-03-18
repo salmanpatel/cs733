@@ -5,10 +5,12 @@ import (
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
 	"time"
+	"reflect"
 )
 
 // Process Alarm action - by generating timer
 func (rn *RaftNode) ProcessAlarmAc(action AlarmAc) {
+	// fmt.Printf("%v ProcessAlarmAc \n", rn.Id())
 	beforeParTOs := rn.parTOs
 	time.Sleep(time.Millisecond * time.Duration(action.time))
 	// No timer reset
@@ -18,7 +20,7 @@ func (rn *RaftNode) ProcessAlarmAc(action AlarmAc) {
 }
 
 func (rn *RaftNode) ProcessSendAc(action SendAc) {
-	fmt.Println("Send Action Called")
+	fmt.Printf("%v ProcessSendAc: %v \n", rn.Id(), reflect.TypeOf(action.event))
 	switch action.event.(type) {
 	case AppendEntriesReqEv:
 		rn.nwHandler.Outbox() <- &cluster.Envelope{Pid: int(action.peerId), Msg: action.event.(AppendEntriesReqEv)}
@@ -34,6 +36,7 @@ func (rn *RaftNode) ProcessSendAc(action SendAc) {
 }
 
 func (rn *RaftNode) ProcessCommitAc(action CommitAc) {
+	fmt.Printf("%v ProcessCommitAc \n", rn.Id())
 	var ci CommitInfo
 	ci.index = action.index
 	ci.data = action.data
@@ -42,6 +45,7 @@ func (rn *RaftNode) ProcessCommitAc(action CommitAc) {
 }
 
 func (rn *RaftNode) ProcessLogStoreAc(action LogStoreAc) {
+	fmt.Printf("%v ProcessLogStoreAc \n", rn.Id())
 	logFP, err := log.Open(rn.logDir + "/" + LogFile)
 	logFP.RegisterSampleEntry(LogEntry{})
 	assert(err == nil)
@@ -52,6 +56,7 @@ func (rn *RaftNode) ProcessLogStoreAc(action LogStoreAc) {
 }
 
 func (rn *RaftNode) ProcessStateStoreAc(action StateStoreAc) {
+	// fmt.Printf("%v ProcessStateStoreAc \n", rn.Id())
 	stateAttrsFP, err := log.Open(rn.logDir + "/" + StateFile)
 	stateAttrsFP.RegisterSampleEntry(PersistentStateAttrs{})
 	assert(err == nil)

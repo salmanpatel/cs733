@@ -1,8 +1,8 @@
 package main
 
 type LogEntry struct {
-	term int64
-	data []byte
+	Term int64
+	Data []byte
 }
 
 type StateMachine struct {
@@ -16,6 +16,8 @@ type StateMachine struct {
 	matchIndex  []int64
 	yesVotes    int64
 	noVotes     int64
+	heartbeatTO int64
+	electionTO int64
 }
 
 func (sm *StateMachine) ProcessEvent(ev interface{}) []interface{} {
