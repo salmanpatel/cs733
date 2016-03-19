@@ -17,7 +17,7 @@ type StateMachine struct {
 	yesVotes    int64
 	noVotes     int64
 	heartbeatTO int64
-	electionTO int64
+	electionTO  int64
 }
 
 func (sm *StateMachine) ProcessEvent(ev interface{}) []interface{} {

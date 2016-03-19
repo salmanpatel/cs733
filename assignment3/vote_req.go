@@ -27,7 +27,7 @@ func (sm *StateMachine) VoteReqEH(ev VoteReqEv) []interface{} {
 }*/
 
 func (sm *StateMachine) LeaderCandidateVoteReqEH(ev VoteReqEv) []interface{} {
-//	fmt.Printf("LeaderCandidateVoteReqEH: Server Id = %v \n", sm.config.serverId)
+	//	fmt.Printf("LeaderCandidateVoteReqEH: Server Id = %v \n", sm.config.serverId)
 	var actions []interface{}
 	if sm.term < ev.Term {
 		sm.term = ev.Term

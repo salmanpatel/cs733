@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -9,7 +8,7 @@ import (
 	"github.com/cs733-iitb/log"
 	//	"os"
 	"time"
-//	"reflect"
+	//	"reflect"
 )
 
 const LogFile = "log"
@@ -19,10 +18,10 @@ const StateFile = "state"
 type RaftNode struct { // implements Node interface
 	sm        StateMachine
 	eventCh   chan interface{}
-	timeoutCh chan bool
+	// timeoutCh chan bool
 	commitCh  chan CommitInfo
 	nwHandler cluster.Server
-	parTOs    int64
+	timer *time.Timer
 	logDir    string
 }
 
@@ -56,9 +55,9 @@ type PersistentStateAttrs struct {
 func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {
 	var rn RaftNode
 	rn.eventCh = make(chan interface{}, 100)
-	rn.timeoutCh = make(chan bool)
+	//rn.timeoutCh = make(chan bool)
 	rn.commitCh = make(chan CommitInfo, 100)
-	rn.parTOs = 0
+	// rn.parTOs = 0
 	rn.logDir = rnConfig.logDir
 
 	rn.initializeStateMachine(rnConfig)
@@ -74,10 +73,11 @@ func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {
 	gob.Register(AppendEntriesResEv{})
 
 	// Set initial election timeout
-	go func() {
+	/*go func() {
 		time.Sleep(time.Millisecond * time.Duration(RandInt(rn.sm.electionTO)))
 		rn.timeoutCh <- true
-	}()
+	}()*/
+	rn.timer = time.NewTimer(time.Duration(RandInt(rnConfig.electionTO))*time.Millisecond)
 
 	return rn
 }
@@ -187,8 +187,8 @@ func (rn *RaftNode) processEvents() {
 		var ev interface{}
 		select {
 		case ev = <-rn.eventCh:
-		case <-rn.timeoutCh:
-			// fmt.Printf("%v Timeout\n", rn.Id())
+		case <-rn.timer.C:
+			// fmt.Printf("%v %v Timeout\n", rn.Id(), rn.sm.state)
 			ev = TimeoutEv{}
 		case inboxEv := <-rn.nwHandler.Inbox():
 			// fmt.Printf("%v received: %v \n", rn.Id(), reflect.TypeOf(inboxEv.Msg))
@@ -216,7 +216,7 @@ func (rn *RaftNode) doActions(actions []interface{}) {
 	for _, action := range actions {
 		switch action.(type) {
 		case AlarmAc:
-			rn.parTOs += 1
+			// rn.parTOs += 1
 			cmd := action.(AlarmAc)
 			go rn.ProcessAlarmAc(cmd)
 		case SendAc:
