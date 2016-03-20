@@ -55,6 +55,7 @@ func RandInt(min int64) int64 {
 	//return min + rand.Int63n(min)
 	return min
 }
+
 /*
 func main() {
 	var sm StateMachine

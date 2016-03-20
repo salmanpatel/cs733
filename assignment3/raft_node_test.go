@@ -1,13 +1,13 @@
 package main
 
 import (
+//	"fmt"
 	"github.com/cs733-iitb/log"
 	"os"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
-	"runtime"
-	//	"fmt"
 )
 
 // Number of replicated nodes
@@ -18,41 +18,6 @@ var peers []NetConfig
 
 func prepareRaftNodeConfigObj() {
 	peers = []NetConfig{NetConfig{100, "localhost", 8001}, NetConfig{200, "localhost", 8002}, NetConfig{300, "localhost", 8003}, NetConfig{400, "localhost", 8004}, NetConfig{500, "localhost", 8005}}
-}
-
-func TestRaftNodeBasic(t *testing.T) {
-	runtime.GOMAXPROCS(1010)
-	prepareRaftNodeConfigObj()
-	rnArr := makeRafts()
-
-	// get leader id from a stable system
-	var ldrId int64
-	for {
-		time.Sleep(100 * time.Millisecond)
-		ldrId = getLeader(rnArr)
-		if ldrId != -1 {
-			break
-		}
-	}
-	// get leader raft node object using it's id
-	ldr := getLeaderById(ldrId, rnArr)
-
-	ldr.Append([]byte("foo"))
-	time.Sleep(10 * time.Second)
-	for _, rn := range rnArr {
-		select {
-		case ci := <-rn.CommitChannel():
-			if ci.err != nil {
-				t.Fatal(ci.err)
-			}
-			if string(ci.data) != "foo" {
-				t.Fatal("Got different data")
-			}
-		default:
-			t.Fatal("Expected message on all nodes")
-		}
-	}
-	//	fmt.Println("test case executed")
 }
 
 func makeRafts() []RaftNode {
@@ -112,4 +77,148 @@ func initRaftStateFile(logDir string) {
 
 func cleanup(logDir string) {
 	os.RemoveAll(logDir)
+}
+
+
+func TestRaftNodeBasic(t *testing.T) {
+	runtime.GOMAXPROCS(1010)
+	prepareRaftNodeConfigObj()
+	rnArr := makeRafts()
+
+	// get leader id from a stable system
+	ldrId := electedLeader(rnArr)
+
+	// get leader raft node object using it's id
+	ldr := getLeaderById(ldrId, rnArr)
+
+	ldr.Append([]byte("foo"))
+	time.Sleep(10 * time.Second)
+
+	checkCommitChanel(t, rnArr, "foo", []int64{})
+
+	//	fmt.Println("test case executed")
+	destroyAll(rnArr, []int64{})
+	// fmt.Println("tc1: pass")
+}
+
+func destroyAll(rnArr []RaftNode, skipList []int64) {
+	for i, rn := range rnArr {
+		if len(skipList)!=0 && stringInSlice(rn.Id(),skipList) {
+			continue
+		}
+		cleanup("PersistentData_" + strconv.Itoa((i+1)*100))
+		rn.Shutdown()
+	}
+}
+
+
+func TestMultipleAppendsWithoutPartition(t *testing.T) {
+	//runtime.GOMAXPROCS(1010)
+	//prepareRaftNodeConfigObj()
+	rnArr := makeRafts()
+
+	for i:=1; i<=3; i++ {
+	// get leader id from a stable system
+	ldrId := electedLeader(rnArr)
+	// get leader raft node object using it's id
+	ldr := getLeaderById(ldrId, rnArr)
+
+	ldr.Append([]byte(strconv.FormatInt(int64(i),10)))
+}
+	
+	time.Sleep(5 * time.Second)
+
+	for i:=1; i<=3; i++ {
+		checkCommitChanel(t, rnArr, strconv.FormatInt(int64(i),10), []int64{})
+	}
+	//	fmt.Println("test case executed")
+	destroyAll(rnArr, []int64{})
+}
+
+
+func TestFollowerShutdown(t *testing.T) {
+//	runtime.GOMAXPROCS(1010)
+//	prepareRaftNodeConfigObj()
+	rnArr := makeRafts()
+
+	// get leader id from a stable system
+	ldrId := electedLeader(rnArr)
+
+	// get leader raft node object using it's id
+	ldr := getLeaderById(ldrId, rnArr)
+
+	// append "1"
+	ldr.Append([]byte("1"))
+
+	skipList := []int64{}
+
+	// shutdown one of the follower
+	for _, rn := range rnArr {
+		if rn.Id() != ldr.Id() {
+			rn.Shutdown()
+			skipList = append(skipList, rn.Id())
+			break			
+		}
+	}
+
+	// get leader id from a stable system
+	ldrId = electedLeader(rnArr)
+
+	// get leader raft node object using it's id
+	ldr = getLeaderById(ldrId, rnArr)
+
+	// append "1"
+	ldr.Append([]byte("2"))
+
+
+	//ldr.Append([]byte("2"))
+	//ldr.Append([]byte("3"))
+	//fmt.Printf("%v Came out of for loop \n", ldr.Id())
+
+	time.Sleep(5 * time.Second)
+
+	for i := 1; i <= 2; i++ {
+		checkCommitChanel(t, rnArr, strconv.FormatInt(int64(i), 10), skipList)
+	}
+	//	fmt.Println("test case executed")
+	destroyAll(rnArr, skipList)
+}
+
+func checkCommitChanel(t *testing.T, rnArr []RaftNode, expected string, skipList []int64) {
+	for _, rn := range rnArr {
+		if len(skipList)!=0 && stringInSlice(rn.Id(), skipList) {
+			continue
+		}
+		select {
+		case ci := <-rn.CommitChannel():
+			if ci.err != nil {
+				t.Fatal(ci.err)
+			}
+			if string(ci.data) != expected {
+				t.Fatal("Got different data :: Got=%v , Expected=%v \n", string(ci.data), expected)
+			}
+		default:
+			t.Fatal("Expected message on all nodes")
+		}
+	}
+}
+
+func electedLeader(rnArr []RaftNode) int64 {
+	var ldrId int64
+	for {
+		time.Sleep(100 * time.Millisecond)
+		ldrId = getLeader(rnArr)
+		if ldrId != -1 {
+			return ldrId
+		}
+	}
+}
+
+func stringInSlice(a int64, list []int64) bool {
+	for _, b := range list {
+		if b == a {
+			return true
+		}
+	}
+	return false
 }

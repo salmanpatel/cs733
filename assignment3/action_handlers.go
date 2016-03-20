@@ -1,29 +1,22 @@
 package main
 
 import (
-	"fmt"
+	// "fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
+//	"reflect"
 	"time"
-	"reflect"
 )
 
 // Process Alarm action - by generating timer
 func (rn *RaftNode) ProcessAlarmAc(action AlarmAc) {
-	// fmt.Printf("%v ProcessAlarmAc \n", rn.Id())
-	//beforeParTOs := rn.parTOs
-	//time.Sleep(time.Millisecond * time.Duration(action.time))
-	// No timer reset
-	//if beforeParTOs == rn.parTOs {
-	//	rn.timeoutCh <- true
-	//}
 	rn.timer.Reset(time.Duration(action.time) * time.Millisecond)
 }
 
 func (rn *RaftNode) ProcessSendAc(action SendAc) {
-	if rn.sm.state == "Leader" {
-		fmt.Printf("%v Sent: %v%v \n", rn.Id(), reflect.TypeOf(action.event),action)
-	}
+	//if rn.sm.state == "Leader" {
+//		fmt.Printf("%v Sent: %v%v \n", rn.Id(), reflect.TypeOf(action.event), action)
+	//}
 	switch action.event.(type) {
 	case AppendEntriesReqEv:
 		rn.nwHandler.Outbox() <- &cluster.Envelope{Pid: int(action.peerId), Msg: action.event.(AppendEntriesReqEv)}
@@ -39,7 +32,7 @@ func (rn *RaftNode) ProcessSendAc(action SendAc) {
 }
 
 func (rn *RaftNode) ProcessCommitAc(action CommitAc) {
-	//	fmt.Printf("%v ProcessCommitAc \n", rn.Id())
+	// fmt.Printf("%v ProcessCommitAc \n", rn.Id())
 	var ci CommitInfo
 	ci.index = action.index
 	ci.data = action.data

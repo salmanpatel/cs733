@@ -53,7 +53,7 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) []interf
 	} else {
 		// Update sm.matchIndex[msg.from] to the last replicated index
 		sm.matchIndex[fromIndex] = ev.ReplicatedLogIndex
-		sm.nextIndex[fromIndex] = ev.ReplicatedLogIndex+1
+		sm.nextIndex[fromIndex] = ev.ReplicatedLogIndex + 1
 		maxCommitIndex := sm.commitIndex
 		totFol := 1
 		majority := len(sm.config.peerIds)/2 + 1

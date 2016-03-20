@@ -3,12 +3,12 @@ package main
 import (
 	"encoding/gob"
 	"errors"
-	"fmt"
+	//"fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
 	//	"os"
+//	"reflect"
 	"time"
-	"reflect"
 )
 
 const LogFile = "log"
@@ -19,11 +19,11 @@ type RaftNode struct { // implements Node interface
 	sm      StateMachine
 	eventCh chan interface{}
 	// timeoutCh chan bool
-	commitCh  chan CommitInfo
-	shutdownSig  chan bool
-	nwHandler cluster.Server
-	timer     *time.Timer
-	logDir    string
+	commitCh    chan CommitInfo
+	shutdownSig chan bool
+	nwHandler   cluster.Server
+	timer       *time.Timer
+	logDir      string
 }
 
 type NetConfig struct {
@@ -190,15 +190,18 @@ func (rn *RaftNode) processEvents() {
 	for {
 		var ev interface{}
 		select {
-		case <- rn.shutdownSig: {return}
+		case <-rn.shutdownSig:
+			{
+				return
+			}
 		case ev = <-rn.eventCh:
 		case <-rn.timer.C:
 			// fmt.Printf("%v %v Timeout\n", rn.Id(), rn.sm.state)
 			ev = TimeoutEv{}
 		case inboxEv := <-rn.nwHandler.Inbox():
-			if rn.sm.state == "Leader" {
-				fmt.Printf("%v Received: %v%v \n", rn.Id(), reflect.TypeOf(inboxEv.Msg),inboxEv.Msg)
-			}
+			//if rn.sm.state == "Leader" {
+			//	fmt.Printf("%v Received: %v%v \n", rn.Id(), reflect.TypeOf(inboxEv.Msg), inboxEv.Msg)
+			//}
 			switch inboxEv.Msg.(type) {
 			case AppendEntriesReqEv:
 				rn.eventCh <- inboxEv.Msg.(AppendEntriesReqEv)

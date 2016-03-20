@@ -46,7 +46,7 @@ func (sm *StateMachine) FollowerAppendEntriesReqEH(ev AppendEntriesReqEv) []inte
 			for i := 0; i < len(ev.Entries); i++ {
 				actions = append(actions, LogStoreAc{int64(i), ev.Entries[i].Term, ev.Entries[i].Data})
 			}
-			actions = append(actions, SendAc{ev.LeaderId, AppendEntriesResEv{From: sm.config.serverId, Term: sm.term, Success: true, ReplicatedLogIndex:int64(len(sm.log)-1)}})
+			actions = append(actions, SendAc{ev.LeaderId, AppendEntriesResEv{From: sm.config.serverId, Term: sm.term, Success: true, ReplicatedLogIndex: int64(len(sm.log) - 1)}})
 			if ev.LeaderCommit > sm.commitIndex {
 				newCommitIndex := MinInt(ev.LeaderCommit, int64(len(sm.log)-1))
 				for i := sm.commitIndex + 1; i <= newCommitIndex; i++ {
@@ -60,7 +60,7 @@ func (sm *StateMachine) FollowerAppendEntriesReqEH(ev AppendEntriesReqEv) []inte
 			for i := 0; i < len(ev.Entries); i++ {
 				actions = append(actions, LogStoreAc{ev.PrevLogIndex + int64(i) + 1, ev.Entries[i].Term, ev.Entries[i].Data})
 			}
-			actions = append(actions, SendAc{ev.LeaderId, AppendEntriesResEv{From: sm.config.serverId, Term: sm.term, Success: true, ReplicatedLogIndex:int64(len(sm.log)-1)}})
+			actions = append(actions, SendAc{ev.LeaderId, AppendEntriesResEv{From: sm.config.serverId, Term: sm.term, Success: true, ReplicatedLogIndex: int64(len(sm.log) - 1)}})
 			if ev.LeaderCommit > sm.commitIndex {
 				newCommitIndex := MinInt(ev.LeaderCommit, int64(len(sm.log)-1))
 				for i := sm.commitIndex + 1; i <= newCommitIndex; i++ {
@@ -69,10 +69,10 @@ func (sm *StateMachine) FollowerAppendEntriesReqEH(ev AppendEntriesReqEv) []inte
 				sm.commitIndex = newCommitIndex
 			}
 		} else {
-			actions = append(actions, SendAc{ev.LeaderId, AppendEntriesResEv{From: sm.config.serverId, Term: sm.term, Success: false, ReplicatedLogIndex:int64(len(sm.log)-1)}})
+			actions = append(actions, SendAc{ev.LeaderId, AppendEntriesResEv{From: sm.config.serverId, Term: sm.term, Success: false, ReplicatedLogIndex: int64(len(sm.log) - 1)}})
 		}
 	} else {
-		actions = append(actions, SendAc{ev.LeaderId, AppendEntriesResEv{From: sm.config.serverId, Term: sm.term, Success: false, ReplicatedLogIndex:int64(len(sm.log)-1)}})
+		actions = append(actions, SendAc{ev.LeaderId, AppendEntriesResEv{From: sm.config.serverId, Term: sm.term, Success: false, ReplicatedLogIndex: int64(len(sm.log) - 1)}})
 	}
 	return actions
 }
@@ -87,7 +87,7 @@ func (sm *StateMachine) LeaderCandidateAppendEntriesReqEH(ev AppendEntriesReqEv)
 		sm.state = "Follower"
 		actions = sm.FollowerAppendEntriesReqEH(ev)
 	} else {
-		actions = append(actions, SendAc{ev.LeaderId, AppendEntriesResEv{From: sm.config.serverId, Term: sm.term, Success: false, ReplicatedLogIndex:int64(len(sm.log)-1)}})
+		actions = append(actions, SendAc{ev.LeaderId, AppendEntriesResEv{From: sm.config.serverId, Term: sm.term, Success: false, ReplicatedLogIndex: int64(len(sm.log) - 1)}})
 	}
 	return actions
 }
