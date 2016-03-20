@@ -1,11 +1,11 @@
 package main
 
 import (
-//	"fmt"
+	"fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
 	"time"
-	//	"reflect"
+	"reflect"
 )
 
 // Process Alarm action - by generating timer
@@ -17,11 +17,13 @@ func (rn *RaftNode) ProcessAlarmAc(action AlarmAc) {
 	//if beforeParTOs == rn.parTOs {
 	//	rn.timeoutCh <- true
 	//}
-	rn.timer.Reset(time.Duration(action.time)*time.Millisecond)
+	rn.timer.Reset(time.Duration(action.time) * time.Millisecond)
 }
 
 func (rn *RaftNode) ProcessSendAc(action SendAc) {
-	//	fmt.Printf("%v ProcessSendAc: %v \n", rn.Id(), reflect.TypeOf(action.event))
+	if rn.sm.state == "Leader" {
+		fmt.Printf("%v Sent: %v%v \n", rn.Id(), reflect.TypeOf(action.event),action)
+	}
 	switch action.event.(type) {
 	case AppendEntriesReqEv:
 		rn.nwHandler.Outbox() <- &cluster.Envelope{Pid: int(action.peerId), Msg: action.event.(AppendEntriesReqEv)}
@@ -46,7 +48,7 @@ func (rn *RaftNode) ProcessCommitAc(action CommitAc) {
 }
 
 func (rn *RaftNode) ProcessLogStoreAc(action LogStoreAc) {
-	//fmt.Printf("%v ProcessLogStoreAc \n", rn.Id())
+	// fmt.Printf("%v ProcessLogStoreAc \n", rn.Id())
 	logFP, err := log.Open(rn.logDir + "/" + LogFile)
 	logFP.RegisterSampleEntry(LogEntry{})
 	assert(err == nil)

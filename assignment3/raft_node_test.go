@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 	"time"
+	"runtime"
 	//	"fmt"
 )
 
@@ -20,6 +21,7 @@ func prepareRaftNodeConfigObj() {
 }
 
 func TestRaftNodeBasic(t *testing.T) {
+	runtime.GOMAXPROCS(1010)
 	prepareRaftNodeConfigObj()
 	rnArr := makeRafts()
 
@@ -58,7 +60,7 @@ func makeRafts() []RaftNode {
 	rnArr := make([]RaftNode, totRaftNodes)
 	for i := 0; i < totRaftNodes; i++ {
 		initRaftStateFile("PersistentData_" + strconv.Itoa((i+1)*100))
-		rnArr[i] = New(RaftNodeConfig{peers, int64((i + 1) * 100), "PersistentData_" + strconv.Itoa((i+1)*100), 500, 50}, jsonFile)
+		rnArr[i] = New(RaftNodeConfig{peers, int64((i + 1) * 100), "PersistentData_" + strconv.Itoa((i+1)*100), 500+10*int64(i), 100}, jsonFile)
 		go rnArr[i].processEvents()
 	}
 	return rnArr

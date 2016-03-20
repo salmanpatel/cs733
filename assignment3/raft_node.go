@@ -3,12 +3,12 @@ package main
 import (
 	"encoding/gob"
 	"errors"
-//	"fmt"
+	"fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
 	//	"os"
 	"time"
-	//	"reflect"
+	"reflect"
 )
 
 const LogFile = "log"
@@ -16,12 +16,13 @@ const StateFile = "state"
 
 // Raft Node Structure
 type RaftNode struct { // implements Node interface
-	sm        StateMachine
-	eventCh   chan interface{}
+	sm      StateMachine
+	eventCh chan interface{}
 	// timeoutCh chan bool
 	commitCh  chan CommitInfo
+	shutdownSig  chan bool
 	nwHandler cluster.Server
-	timer *time.Timer
+	timer     *time.Timer
 	logDir    string
 }
 
@@ -56,6 +57,7 @@ func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {
 	var rn RaftNode
 	rn.eventCh = make(chan interface{}, 100)
 	//rn.timeoutCh = make(chan bool)
+	rn.shutdownSig = make(chan bool)
 	rn.commitCh = make(chan CommitInfo, 100)
 	// rn.parTOs = 0
 	rn.logDir = rnConfig.logDir
@@ -77,7 +79,7 @@ func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {
 		time.Sleep(time.Millisecond * time.Duration(RandInt(rn.sm.electionTO)))
 		rn.timeoutCh <- true
 	}()*/
-	rn.timer = time.NewTimer(time.Duration(RandInt(rnConfig.electionTO))*time.Millisecond)
+	rn.timer = time.NewTimer(time.Duration(RandInt(rnConfig.electionTO)) * time.Millisecond)
 
 	return rn
 }
@@ -112,7 +114,9 @@ func (rn *RaftNode) LeaderId() int64 {
 
 // Signal to shut down all goroutines, stop sockets, flush log and close it, cancel timers.
 func (rn *RaftNode) Shutdown() {
+	rn.shutdownSig <- true
 	rn.nwHandler.Close()
+	//defer rn.Close()
 }
 
 func (rn *RaftNode) initializeLog(rnConfig RaftNodeConfig) int64 {
@@ -186,12 +190,15 @@ func (rn *RaftNode) processEvents() {
 	for {
 		var ev interface{}
 		select {
+		case <- rn.shutdownSig: {return}
 		case ev = <-rn.eventCh:
 		case <-rn.timer.C:
 			// fmt.Printf("%v %v Timeout\n", rn.Id(), rn.sm.state)
 			ev = TimeoutEv{}
 		case inboxEv := <-rn.nwHandler.Inbox():
-			// fmt.Printf("%v received: %v \n", rn.Id(), reflect.TypeOf(inboxEv.Msg))
+			if rn.sm.state == "Leader" {
+				fmt.Printf("%v Received: %v%v \n", rn.Id(), reflect.TypeOf(inboxEv.Msg),inboxEv.Msg)
+			}
 			switch inboxEv.Msg.(type) {
 			case AppendEntriesReqEv:
 				rn.eventCh <- inboxEv.Msg.(AppendEntriesReqEv)

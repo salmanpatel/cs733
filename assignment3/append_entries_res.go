@@ -3,9 +3,10 @@ package main
 //import "fmt"
 
 type AppendEntriesResEv struct {
-	From    int64
-	Term    int64
-	Success bool
+	From               int64
+	Term               int64
+	ReplicatedLogIndex int64
+	Success            bool
 }
 
 func (sm *StateMachine) AppendEntriesResEH(ev AppendEntriesResEv) []interface{} {
@@ -51,8 +52,8 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) []interf
 		}
 	} else {
 		// Update sm.matchIndex[msg.from] to the last replicated index
-		sm.matchIndex[fromIndex] = int64(len(sm.log)) - 1
-		sm.nextIndex[fromIndex] = int64(len(sm.log))
+		sm.matchIndex[fromIndex] = ev.ReplicatedLogIndex
+		sm.nextIndex[fromIndex] = ev.ReplicatedLogIndex+1
 		maxCommitIndex := sm.commitIndex
 		totFol := 1
 		majority := len(sm.config.peerIds)/2 + 1
