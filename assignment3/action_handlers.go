@@ -4,7 +4,7 @@ import (
 	// "fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
-//	"reflect"
+	//	"reflect"
 	"time"
 )
 
@@ -15,7 +15,7 @@ func (rn *RaftNode) ProcessAlarmAc(action AlarmAc) {
 
 func (rn *RaftNode) ProcessSendAc(action SendAc) {
 	//if rn.sm.state == "Leader" {
-//		fmt.Printf("%v Sent: %v%v \n", rn.Id(), reflect.TypeOf(action.event), action)
+	//		fmt.Printf("%v Sent: %v%v \n", rn.Id(), reflect.TypeOf(action.event), action)
 	//}
 	switch action.event.(type) {
 	case AppendEntriesReqEv:

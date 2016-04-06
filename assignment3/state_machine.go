@@ -1,7 +1,7 @@
 package main
 
-//import "math/rand"
-//import "time"
+import "math/rand"
+import "time"
 
 type LogEntry struct {
 	Term int64
@@ -51,9 +51,9 @@ func (sm *StateMachine) ProcessEvent(ev interface{}) []interface{} {
 }
 
 func RandInt(min int64) int64 {
-	//rand.Seed(time.Now().UnixNano())
-	//return min + rand.Int63n(min)
-	return min
+	rand.Seed(time.Now().UnixNano())
+	return min + rand.Int63n(min)
+	//	return min
 }
 
 /*

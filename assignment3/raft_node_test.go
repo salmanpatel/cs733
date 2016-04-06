@@ -1,7 +1,7 @@
 package main
 
 import (
-//	"fmt"
+	//	"fmt"
 	"github.com/cs733-iitb/log"
 	"os"
 	"runtime"
@@ -25,7 +25,7 @@ func makeRafts() []RaftNode {
 	rnArr := make([]RaftNode, totRaftNodes)
 	for i := 0; i < totRaftNodes; i++ {
 		initRaftStateFile("PersistentData_" + strconv.Itoa((i+1)*100))
-		rnArr[i] = New(RaftNodeConfig{peers, int64((i + 1) * 100), "PersistentData_" + strconv.Itoa((i+1)*100), 500+10*int64(i), 100}, jsonFile)
+		rnArr[i] = New(RaftNodeConfig{peers, int64((i + 1) * 100), "PersistentData_" + strconv.Itoa((i+1)*100), 500, 100}, jsonFile)
 		go rnArr[i].processEvents()
 	}
 	return rnArr
@@ -79,7 +79,6 @@ func cleanup(logDir string) {
 	os.RemoveAll(logDir)
 }
 
-
 func TestRaftNodeBasic(t *testing.T) {
 	runtime.GOMAXPROCS(1010)
 	prepareRaftNodeConfigObj()
@@ -103,7 +102,7 @@ func TestRaftNodeBasic(t *testing.T) {
 
 func destroyAll(rnArr []RaftNode, skipList []int64) {
 	for i, rn := range rnArr {
-		if len(skipList)!=0 && stringInSlice(rn.Id(),skipList) {
+		if len(skipList) != 0 && stringInSlice(rn.Id(), skipList) {
 			continue
 		}
 		cleanup("PersistentData_" + strconv.Itoa((i+1)*100))
@@ -111,34 +110,32 @@ func destroyAll(rnArr []RaftNode, skipList []int64) {
 	}
 }
 
-
 func TestMultipleAppendsWithoutPartition(t *testing.T) {
 	//runtime.GOMAXPROCS(1010)
 	//prepareRaftNodeConfigObj()
 	rnArr := makeRafts()
 
-	for i:=1; i<=3; i++ {
-	// get leader id from a stable system
-	ldrId := electedLeader(rnArr)
-	// get leader raft node object using it's id
-	ldr := getLeaderById(ldrId, rnArr)
+	for i := 1; i <= 3; i++ {
+		// get leader id from a stable system
+		ldrId := electedLeader(rnArr)
+		// get leader raft node object using it's id
+		ldr := getLeaderById(ldrId, rnArr)
 
-	ldr.Append([]byte(strconv.FormatInt(int64(i),10)))
-}
-	
+		ldr.Append([]byte(strconv.FormatInt(int64(i), 10)))
+	}
+
 	time.Sleep(5 * time.Second)
 
-	for i:=1; i<=3; i++ {
-		checkCommitChanel(t, rnArr, strconv.FormatInt(int64(i),10), []int64{})
+	for i := 1; i <= 3; i++ {
+		checkCommitChanel(t, rnArr, strconv.FormatInt(int64(i), 10), []int64{})
 	}
 	//	fmt.Println("test case executed")
 	destroyAll(rnArr, []int64{})
 }
 
-
 func TestFollowerShutdown(t *testing.T) {
-//	runtime.GOMAXPROCS(1010)
-//	prepareRaftNodeConfigObj()
+	//	runtime.GOMAXPROCS(1010)
+	//	prepareRaftNodeConfigObj()
 	rnArr := makeRafts()
 
 	// get leader id from a stable system
@@ -157,7 +154,7 @@ func TestFollowerShutdown(t *testing.T) {
 		if rn.Id() != ldr.Id() {
 			rn.Shutdown()
 			skipList = append(skipList, rn.Id())
-			break			
+			break
 		}
 	}
 
@@ -169,7 +166,6 @@ func TestFollowerShutdown(t *testing.T) {
 
 	// append "1"
 	ldr.Append([]byte("2"))
-
 
 	//ldr.Append([]byte("2"))
 	//ldr.Append([]byte("3"))
@@ -184,9 +180,47 @@ func TestFollowerShutdown(t *testing.T) {
 	destroyAll(rnArr, skipList)
 }
 
+/*
+func TestLeaderShutdown(t *testing.T) {
+	//	runtime.GOMAXPROCS(1010)
+	//	prepareRaftNodeConfigObj()
+	rnArr := makeRafts()
+
+	// get leader id from a stable system
+	ldrId := electedLeader(rnArr)
+
+	// get leader raft node object using it's id
+	ldr := getLeaderById(ldrId, rnArr)
+
+	// append "1"
+	ldr.Append([]byte("1"))
+
+	skipList := []int64{}
+
+	// shutdown Leader
+	ldrId = electedLeader(rnArr)
+	ldr = getLeaderById(ldrId, rnArr)
+	ldr.Shutdown()
+	skipList = append(skipList, ldr.Id())
+
+	// Append to new leader
+	ldrId = electedLeader(rnArr)
+	ldr = getLeaderById(ldrId, rnArr)
+	ldr.Append([]byte("2"))
+
+	time.Sleep(5 * time.Second)
+
+	for i := 1; i <= 2; i++ {
+		checkCommitChanel(t, rnArr, strconv.FormatInt(int64(i), 10), skipList)
+	}
+	//	fmt.Println("test case executed")
+	destroyAll(rnArr, skipList)
+}
+*/
+
 func checkCommitChanel(t *testing.T, rnArr []RaftNode, expected string, skipList []int64) {
 	for _, rn := range rnArr {
-		if len(skipList)!=0 && stringInSlice(rn.Id(), skipList) {
+		if len(skipList) != 0 && stringInSlice(rn.Id(), skipList) {
 			continue
 		}
 		select {
