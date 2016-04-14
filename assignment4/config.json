@@ -7,5 +7,6 @@
 		{"Id":500,"Address":"localhost:8005"}
 	],
 	"InboxSize": 1000,
-	"OutboxSize": 1000
+	"OutboxSize": 1000,
+
 }

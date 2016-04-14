@@ -1,6 +1,5 @@
 package main
 
-
 import (
 	"bufio"
 	"bytes"
@@ -191,7 +190,7 @@ func TestRPC_BasicTimer(t *testing.T) {
 	expect(t, m, &Msg{Kind: 'F'}, "file not found after 4 sec", err)
 
 	// Create the file with an expiry time of 1 sec. We're going to delete it
-	// then immediately create it. The new file better not get deleted. 
+	// then immediately create it. The new file better not get deleted.
 	m, err = cl.write("cs733", str, 1)
 	expect(t, m, &Msg{Kind: 'O'}, "file created for delete", err)
 
@@ -206,7 +205,6 @@ func TestRPC_BasicTimer(t *testing.T) {
 	expect(t, m, &Msg{Kind: 'C'}, "file should not be deleted", err)
 
 }
-
 
 // nclients write to the same file. At the end the file should be
 // any one clients' last write
@@ -253,7 +251,7 @@ func TestRPC_ConcurrentWrites(t *testing.T) {
 			if m.Kind != 'O' {
 				t.Fatalf("Concurrent write failed with kind=%c", m.Kind)
 			}
-		case err := <- errCh:
+		case err := <-errCh:
 			t.Fatal(err)
 		}
 	}
@@ -296,7 +294,7 @@ func TestRPC_ConcurrentCas(t *testing.T) {
 	wg.Add(nclients)
 
 	errorCh := make(chan error, nclients)
-	
+
 	for i := 0; i < nclients; i++ {
 		go func(i int, ver int, cl *Client) {
 			sem.Wait()
@@ -324,7 +322,7 @@ func TestRPC_ConcurrentCas(t *testing.T) {
 	sem.Done()                         // Start goroutines
 	wg.Wait()                          // Wait for them to finish
 	select {
-	case e := <- errorCh:
+	case e := <-errorCh:
 		t.Fatalf("Error received while doing cas: %v", e)
 	default: // no errors
 	}
@@ -472,7 +470,7 @@ func parseFirst(line string) (msg *Msg, err error) {
 	toInt := func(fieldNum int) int {
 		var i int
 		if err == nil {
-			if fieldNum >=  len(fields) {
+			if fieldNum >= len(fields) {
 				err = errors.New(fmt.Sprintf("Not enough fields. Expected field #%d in %s\n", fieldNum, line))
 				return 0
 			}

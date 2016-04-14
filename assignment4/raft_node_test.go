@@ -1,11 +1,14 @@
 package main
 
 import (
-	//	"fmt"
+	"encoding/json"
+	"fmt"
 	"github.com/cs733-iitb/log"
+	"io/ioutil"
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -16,8 +19,36 @@ const jsonFile = "config.json"
 
 var peers []NetConfig
 
+func checkErr(err error, errMsg string) {
+	if err != nil {
+		fmt.Printf("Error: %v", errMsg)
+		os.Exit(1)
+	}
+}
+
+type PeerSpec struct {
+	Id      int64
+	Address string
+}
+
+type PeerSpecArr struct {
+	Peers []PeerSpec
+}
+
 func prepareRaftNodeConfigObj() {
-	peers = []NetConfig{NetConfig{100, "localhost", 8001}, NetConfig{200, "localhost", 8002}, NetConfig{300, "localhost", 8003}, NetConfig{400, "localhost", 8004}, NetConfig{500, "localhost", 8005}}
+	data, err := ioutil.ReadFile("config.json")
+	checkErr(err, "reading JSON file")
+	var peerSpecArr PeerSpecArr
+	err = json.Unmarshal(data, &peerSpecArr)
+	checkErr(err, "decoding JSON file")
+	peers = make([]NetConfig, len(peerSpecArr.Peers))
+	for i, peer := range peerSpecArr.Peers {
+		hostPort := strings.Split(peer.Address, ":")
+		port, err := strconv.Atoi(hostPort[1])
+		checkErr(err, "string to int conversion for port")
+		peers[i] = NetConfig{peer.Id, hostPort[0], port}
+	}
+	//	peers = []NetConfig{NetConfig{100, "localhost", 8001}, NetConfig{200, "localhost", 8002}, NetConfig{300, "localhost", 8003}, NetConfig{400, "localhost", 8004}, NetConfig{500, "localhost", 8005}}
 }
 
 func makeRafts() []RaftNode {
@@ -229,7 +260,7 @@ func checkCommitChanel(t *testing.T, rnArr []RaftNode, expected string, skipList
 				t.Fatal(ci.err)
 			}
 			if string(ci.data) != expected {
-				t.Fatal("Got different data :: Got=%v , Expected=%v \n", string(ci.data), expected)
+				t.Fatalf("Got different data :: Got=%v , Expected=%v \n", string(ci.data), expected)
 			}
 		default:
 			t.Fatal("Expected message on all nodes")
