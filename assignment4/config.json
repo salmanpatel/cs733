@@ -1,12 +1,11 @@
 {
 	"Peers":[
-		{"Id":100,"Address":"localhost:8001"},
-		{"Id":200,"Address":"localhost:8002"},
-		{"Id":300,"Address":"localhost:8003"},
-		{"Id":400,"Address":"localhost:8004"},
-		{"Id":500,"Address":"localhost:8005"}
+		{"Id":100,"Address":"localhost:8001","FSAddress":"localhost:9001"},
+		{"Id":200,"Address":"localhost:8002","FSAddress":"localhost:9002"},
+		{"Id":300,"Address":"localhost:8003","FSAddress":"localhost:9003"},
+		{"Id":400,"Address":"localhost:8004","FSAddress":"localhost:9004"},
+		{"Id":500,"Address":"localhost:8005","FSAddress":"localhost:9005"}
 	],
 	"InboxSize": 1000,
-	"OutboxSize": 1000,
-
+	"OutboxSize": 1000
 }

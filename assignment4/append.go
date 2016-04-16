@@ -38,6 +38,6 @@ func (sm *StateMachine) LeaderAppendEH(ev AppendEv) []interface{} {
 
 func (sm *StateMachine) FollowerCandidateAppendEH(ev AppendEv) []interface{} {
 	var actions []interface{}
-	actions = append(actions, CommitAc{int64(len(sm.log) - 1), ev.Data, errors.New("Not a Leader")})
+	actions = append(actions, CommitAc{int64(-1), ev.Data, errors.New("Not a Leader")})
 	return actions
 }

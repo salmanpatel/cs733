@@ -8,6 +8,7 @@ import (
 	"github.com/cs733-iitb/log"
 	//	"os"
 	//	"reflect"
+	"strconv"
 	"time"
 )
 
@@ -51,6 +52,13 @@ type PersistentStateAttrs struct {
 	Term     int64
 	State    string
 	VotedFor int64
+}
+
+func initRaftNode(id int64, peers []NetConfig, jsonFile string) RaftNode {
+	// peers := prepareRaftNodeConfigObj()
+	//initRaftStateFile("PersistentData_" + strconv.Itoa((i+1)*100))
+	rn := New(RaftNodeConfig{peers, id, "dir" + strconv.FormatInt(id, 10), 500, 100}, jsonFile)
+	return rn
 }
 
 func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {

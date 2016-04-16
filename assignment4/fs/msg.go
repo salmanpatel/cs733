@@ -44,6 +44,7 @@ type Msg struct {
 	// Kind = the first character of the command. For errors, it
 	// is the first letter after "ERR_", ('V' for ERR_VERSION, for
 	// example), except for "ERR_CMD_ERR", for which the kind is 'M'
+	ClientId int64
 	Kind     byte
 	Filename string
 	Contents []byte
