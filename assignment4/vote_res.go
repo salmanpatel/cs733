@@ -1,6 +1,6 @@
 package main
 
-//import "fmt"
+import "fmt"
 
 type VoteResEv struct {
 	Term        int64
@@ -47,7 +47,7 @@ func (sm *StateMachine) CandidateVoteResEH(ev VoteResEv) []interface{} {
 		if sm.yesVotes >= int64(majority) {
 			flag = true
 			sm.state = "Leader"
-			//fmt.Printf("%v Elected as a Leader : Term = %v \n", sm.config.serverId, sm.term)
+			fmt.Printf("%v Elected as a Leader : Term = %v \n", sm.config.serverId, sm.term)
 			for i := 0; i < len(sm.config.peerIds); i++ {
 				sm.nextIndex[i] = int64(len(sm.log))
 				sm.matchIndex[i] = -1

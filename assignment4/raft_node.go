@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/gob"
 	"errors"
-	//"fmt"
+	"fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
 	//	"os"
@@ -57,7 +57,7 @@ type PersistentStateAttrs struct {
 func initRaftNode(id int64, peers []NetConfig, jsonFile string) RaftNode {
 	// peers := prepareRaftNodeConfigObj()
 	//initRaftStateFile("PersistentData_" + strconv.Itoa((i+1)*100))
-	rn := New(RaftNodeConfig{peers, id, "dir" + strconv.FormatInt(id, 10), 500, 100}, jsonFile)
+	rn := New(RaftNodeConfig{peers, id, "dir" + strconv.FormatInt(id, 10), 1000, 200}, jsonFile)
 	return rn
 }
 
@@ -204,7 +204,7 @@ func (rn *RaftNode) processEvents() {
 			}
 		case ev = <-rn.eventCh:
 		case <-rn.timer.C:
-			// fmt.Printf("%v %v Timeout\n", rn.Id(), rn.sm.state)
+			fmt.Printf("%v %v Timeout\n", rn.Id(), rn.sm.state)
 			ev = TimeoutEv{}
 		case inboxEv := <-rn.nwHandler.Inbox():
 			//if rn.sm.state == "Leader" {
@@ -234,7 +234,6 @@ func (rn *RaftNode) doActions(actions []interface{}) {
 	for _, action := range actions {
 		switch action.(type) {
 		case AlarmAc:
-			// rn.parTOs += 1
 			cmd := action.(AlarmAc)
 			go rn.ProcessAlarmAc(cmd)
 		case SendAc:

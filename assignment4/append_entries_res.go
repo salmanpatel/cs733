@@ -43,9 +43,11 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) []interf
 			actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
 		} else {
 			// Valid Leader - Mismatch in prevIndex entry
-			sm.nextIndex[fromIndex]--
+			if sm.nextIndex[fromIndex] > 0 {
+				sm.nextIndex[fromIndex]--
+			}
 			prevTerm := int64(0)
-			if sm.nextIndex[fromIndex] != 0 {
+			if sm.nextIndex[fromIndex] > 0 {
 				prevTerm = sm.log[sm.nextIndex[fromIndex]-1].Term
 			}
 			actions = append(actions, SendAc{ev.From, AppendEntriesReqEv{sm.term, sm.config.serverId, sm.nextIndex[fromIndex] - 1, prevTerm, sm.log[sm.nextIndex[fromIndex]:], sm.commitIndex}})

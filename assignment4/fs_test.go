@@ -16,6 +16,7 @@ import (
 	"bytes"
 	"errors"
 	"net"
+	// "reflect"
 )
 
 const jsonFile = "config.json"
@@ -64,7 +65,7 @@ func InitServer() {
 		initRaftStateFile("dir" + strconv.FormatInt(peer.id, 10))
 		go serverMain(peer.id, peers, jsonFile)
 	}
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 }
 
 func TestSimple(t *testing.T) {
@@ -97,57 +98,68 @@ func expect(t *testing.T, response *Msg, expected *Msg, errstr string, err error
 }
 
 func TestRPC_BasicSequential(t *testing.T) {
-	cl := mkClient(t)
+	cl := mkClient(t, "localhost:9001")
 	defer cl.close()
 
 	// Read non-existent file cs733net
 	m, err := cl.read("cs733net")
 	expect(t, m, &Msg{Kind: 'F'}, "file not found", err)
+	fmt.Println("cl.read(cs733net) pass")
 
 	// Read non-existent file cs733net
-	m, err = cl.delete("cs733net")
+	cl, m, err = cl.sendDeleteCommand(t, "cs733net")
 	expect(t, m, &Msg{Kind: 'F'}, "file not found", err)
+	fmt.Println("sendDeleteCommand(t,cs733net) pass")
+	// fmt.Printf("conn value after delete: %v \n", cl)
 
 	// Write file cs733net
 	data := "Cloud fun"
-	m, err = cl.write("cs733net", data, 0)
+	cl, m, err = cl.sendWriteCommand(t, "cs733net", data, 0)
 	expect(t, m, &Msg{Kind: 'O'}, "write success", err)
+	fmt.Println("cl.sendWriteCommand(t,cs733net, data, 0) pass")
 
 	// Expect to read it back
 	m, err = cl.read("cs733net")
 	expect(t, m, &Msg{Kind: 'C', Contents: []byte(data)}, "read my write", err)
+	fmt.Println("cl.read(cs733net) pass")
 
 	// CAS in new value
 	version1 := m.Version
 	data2 := "Cloud fun 2"
 	// Cas new value
-	m, err = cl.cas("cs733net", version1, data2, 0)
+	cl, m, err = cl.sendCasCommand(t, "cs733net", version1, data2, 0)
 	expect(t, m, &Msg{Kind: 'O'}, "cas success", err)
+	fmt.Println("sendCasCommand(t, cs733net, version1, data2, 0) pass")
 
 	// Expect to read it back
 	m, err = cl.read("cs733net")
 	expect(t, m, &Msg{Kind: 'C', Contents: []byte(data2)}, "read my cas", err)
+	fmt.Println("read(cs733net) pass")
 
 	// Expect Cas to fail with old version
-	m, err = cl.cas("cs733net", version1, data, 0)
+	cl, m, err = cl.sendCasCommand(t, "cs733net", version1, data, 0)
 	expect(t, m, &Msg{Kind: 'V'}, "cas version mismatch", err)
+	fmt.Println("sendCasCommand(t, cs733net, version1, data, 0)")
 
 	// Expect a failed cas to not have succeeded. Read should return data2.
 	m, err = cl.read("cs733net")
 	expect(t, m, &Msg{Kind: 'C', Contents: []byte(data2)}, "failed cas to not have succeeded", err)
+	fmt.Println("read(cs733net)")
 
-	// delete
-	m, err = cl.delete("cs733net")
+	// sendDeleteCommand
+	cl, m, err = cl.sendDeleteCommand(t, "cs733net")
 	expect(t, m, &Msg{Kind: 'O'}, "delete success", err)
+	fmt.Printf("sendDeleteCommand(t,cs733net)")
 
 	// Expect to not find the file
 	m, err = cl.read("cs733net")
 	expect(t, m, &Msg{Kind: 'F'}, "file not found", err)
+	fmt.Println("read(cs733net)")
 }
 
-func mkClient(t *testing.T) *Client {
+func mkClient(t *testing.T, connString string) *Client {
 	var client *Client
-	raddr, err := net.ResolveTCPAddr("tcp", "localhost:9001")
+	raddr, err := net.ResolveTCPAddr("tcp", connString)
 	if err == nil {
 		conn, err := net.DialTCP("tcp", nil, raddr)
 		if err == nil {
@@ -200,6 +212,7 @@ func (cl *Client) write(filename string, contents string, exptime int) (*Msg, er
 		cmd = fmt.Sprintf("write %s %d %d\r\n", filename, len(contents), exptime)
 	}
 	cmd += contents + "\r\n"
+	fmt.Printf("write: %v", cmd)
 	return cl.sendRcv(cmd)
 }
 
@@ -235,11 +248,13 @@ func (cl *Client) rcv() (msg *Msg, err error) {
 
 func (cl *Client) sendRcv(str string) (msg *Msg, err error) {
 	if cl.conn == nil {
+		//fmt.Println("sendRcv: connection closed")
 		return nil, errNoConn
 	}
 	err = cl.send(str)
 	if err == nil {
 		msg, err = cl.rcv()
+		//fmt.Printf("sendRcv: %v %v \n", msg, err)
 	}
 	return msg, err
 }
@@ -302,7 +317,7 @@ func parseFirst(line string) (msg *Msg, err error) {
 		msg.Kind = 'I'
 	case "ERR_REDIRECT":
 		msg.Kind = 'R'
-		msg.Contents = toInt(1)
+		msg.Contents = []byte(fields[1])
 	default:
 		err = errors.New("Unknown response " + fields[0])
 	}
@@ -311,4 +326,56 @@ func parseFirst(line string) (msg *Msg, err error) {
 	} else {
 		return msg, nil
 	}
+}
+
+func (cl *Client) sendDeleteCommand(t *testing.T, filename string) (c *Client, msg *Msg, err error) {
+	flag := 0
+	for flag == 0 {
+		msg, err = cl.delete(filename)
+		if err != nil {
+			t.Fatal("Unexpected error: " + err.Error())
+		}
+		if msg.Kind != 'R' {
+			flag = 1
+			return cl, msg, err
+		}
+		cl.close()
+		cl = mkClient(t, string(msg.Contents[:]))
+	}
+	return cl, msg, err
+}
+
+func (cl *Client) sendWriteCommand(t *testing.T, filename string, contents string, exptime int) (c *Client, msg *Msg, err error) {
+	flag := 0
+	for flag == 0 {
+		msg, err = cl.write(filename, contents, exptime)
+		fmt.Printf("sendWriteCommand: %v\n", msg)
+		if err != nil {
+			t.Fatal("Unexpected error: " + err.Error())
+		}
+		if msg != nil && msg.Kind != 'R' {
+			flag = 1
+			return cl, msg, err
+		}
+		cl.close()
+		cl = mkClient(t, string(msg.Contents[:]))
+	}
+	return cl, msg, err
+}
+
+func (cl *Client) sendCasCommand(t *testing.T, filename string, version int, contents string, exptime int) (c *Client, msg *Msg, err error) {
+	flag := 0
+	for flag == 0 {
+		msg, err = cl.cas(filename, version, contents, exptime)
+		if err != nil {
+			t.Fatal("Unexpected error: " + err.Error())
+		}
+		if msg.Kind != 'R' {
+			flag = 1
+			return cl, msg, err
+		}
+		cl.close()
+		cl = mkClient(t, string(msg.Contents[:]))
+	}
+	return cl, msg, err
 }

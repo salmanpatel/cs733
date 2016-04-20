@@ -18,12 +18,10 @@ type MsgStruct struct {
 	Data fs.Msg
 }
 
-/*
-type ChanMsg struct {
-	data fs.Msg
-	err error
+type Response struct {
+	resp fs.Msg
+	err  error
 }
-*/
 
 func check(obj interface{}) {
 	if obj != nil {
@@ -58,7 +56,7 @@ func reply(conn *net.TCPConn, msg *fs.Msg) bool {
 	case 'I':
 		resp = "ERR_INTERNAL"
 	case 'R':
-		resp = "ERR_REDIRECT" + string(msg.Contents[:])
+		resp = "ERR_REDIRECT " + string(msg.Contents[:])
 	default:
 		fmt.Printf("Unknown response kind '%c'", msg.Kind)
 		return false
@@ -151,20 +149,6 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 	// Initialize raft node and spawn independent go routine
 	rn := initRaftNode(id, peers, jsonFile)
 	go rn.processEvents()
-
-	/*
-		getConnString := func() string {
-			fsConfigObj := prepareFSConfigObj(jsonFile)
-			for _,fsc := range fsConfigObj {
-				if fsc.id == id {
-					return fsc.host + ":" + strconv.Itoa(fsc.port)
-				}
-			}
-			// Ideally server id should match with one of the id's from config object
-			// otherwise returning empty string
-			return ""
-		}
-	*/
 
 	// open listen port for client connections
 	connString := getConnStringById(id, jsonFile)
