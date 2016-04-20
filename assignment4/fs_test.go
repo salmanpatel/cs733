@@ -212,7 +212,7 @@ func (cl *Client) write(filename string, contents string, exptime int) (*Msg, er
 		cmd = fmt.Sprintf("write %s %d %d\r\n", filename, len(contents), exptime)
 	}
 	cmd += contents + "\r\n"
-	fmt.Printf("write: %v", cmd)
+	// fmt.Printf("write: %v", cmd)
 	return cl.sendRcv(cmd)
 }
 
@@ -349,7 +349,7 @@ func (cl *Client) sendWriteCommand(t *testing.T, filename string, contents strin
 	flag := 0
 	for flag == 0 {
 		msg, err = cl.write(filename, contents, exptime)
-		fmt.Printf("sendWriteCommand: %v\n", msg)
+		// fmt.Printf("sendWriteCommand: %v\n", msg)
 		if err != nil {
 			t.Fatal("Unexpected error: " + err.Error())
 		}

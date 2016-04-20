@@ -19,7 +19,7 @@ type MsgStruct struct {
 }
 
 type Response struct {
-	resp fs.Msg
+	resp *fs.Msg
 	err  error
 }
 
@@ -70,7 +70,7 @@ func reply(conn *net.TCPConn, msg *fs.Msg) bool {
 	return err == nil
 }
 
-func serve(conn *net.TCPConn, clientId int64, cmdChan chan error, rn RaftNode) {
+func serve(conn *net.TCPConn, clientId int64, cmdChan chan *Response, rn RaftNode) {
 
 	reader := bufio.NewReader(conn)
 
@@ -89,6 +89,8 @@ func serve(conn *net.TCPConn, clientId int64, cmdChan chan error, rn RaftNode) {
 			}
 			continue
 		}
+
+		var respMsg *fs.Msg
 
 		// replicate command to all other servers
 		// reads need not be replicated
@@ -114,7 +116,9 @@ func serve(conn *net.TCPConn, clientId int64, cmdChan chan error, rn RaftNode) {
 			rn.Append(msgBytes)
 
 			// wait on channel untill it has been replicated on majority of raft nodes
-			errVal := <-cmdChan
+			respStrVar := <-cmdChan
+			errVal := respStrVar.err
+			respMsg = respStrVar.resp
 			if errVal != nil {
 				// set message kind to ERR_REDIRECT
 				cont := []byte(getConnStringById(rn.LeaderId(), jsonFile))
@@ -122,10 +126,12 @@ func serve(conn *net.TCPConn, clientId int64, cmdChan chan error, rn RaftNode) {
 				conn.Close()
 				break
 			}
+		} else {
+			respMsg = fs.ProcessMsg(msg)
 		}
 
-		response := fs.ProcessMsg(msg)
-		if !reply(conn, response) {
+		// response := fs.ProcessMsg(msg)
+		if !reply(conn, respMsg) {
 			conn.Close()
 			break
 		}
@@ -168,7 +174,7 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 
 	// map to maintain client id to channel mapping, so that after reading command
 	// from commit channel it can be put to appropriate client channel
-	clientIdToChanMap := make(map[int64]chan error)
+	clientIdToChanMap := make(map[int64]chan *Response)
 
 	// go routine to listen on commit channel from a raft node
 	go func() {
@@ -181,6 +187,7 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 				if cmtInfo.index != lastIndexPrcsd+1 {
 					// handleMissingCmnds()
 					for i := lastIndexPrcsd + 1; i < cmtInfo.index; i++ {
+						fmt.Printf("Processing missing indexes: %v\n", i)
 						err, msngMsg := rn.Get(int(i))
 						if err != nil {
 							// invalid index has been requested
@@ -188,10 +195,11 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 						}
 						msngMsgDecoded, err := decode(msngMsg)
 						if err != nil {
-							// server facing problem with messafe decoding
+							// server facing problem with message decoding
 							fmt.Println("Error: decoding message after replication")
 						} else {
-							clientIdToChanMap[msngMsgDecoded.ClientId] <- nil
+							response := fs.ProcessMsg(&msngMsgDecoded)
+							clientIdToChanMap[msngMsgDecoded.ClientId] <- &Response{response, nil}
 						}
 					}
 				}
@@ -201,8 +209,10 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 				// server facing problem with messafe decoding
 				fmt.Println("Error: decoding message after replication")
 			} else {
-				clientIdToChanMap[msg.ClientId] <- cmtInfo.err
+				response := fs.ProcessMsg(&msg)
+				clientIdToChanMap[msg.ClientId] <- &Response{response, cmtInfo.err}
 			}
+			lastIndexPrcsd = cmtInfo.index
 		}
 	}()
 
@@ -210,7 +220,7 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 		tcp_conn, err := tcp_acceptor.AcceptTCP()
 		check(err)
 		clientId = (clientId + 1) % math.MaxInt64
-		clientIdToChanMap[clientId] = make(chan error)
+		clientIdToChanMap[clientId] = make(chan *Response)
 		go serve(tcp_conn, clientId, clientIdToChanMap[clientId], rn)
 	}
 }
