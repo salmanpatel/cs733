@@ -10,6 +10,7 @@ import (
 
 // Process Alarm action - by generating timer
 func (rn *RaftNode) ProcessAlarmAc(action AlarmAc) {
+	// fmt.Printf("%v %v Timer Reset %v \n", rn.Id() ,rn.sm.state, action.time)
 	rn.timer.Reset(time.Duration(action.time) * time.Millisecond)
 }
 

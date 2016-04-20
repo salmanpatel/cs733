@@ -70,7 +70,7 @@ func reply(conn *net.TCPConn, msg *fs.Msg) bool {
 	return err == nil
 }
 
-func serve(conn *net.TCPConn, clientId int64, cmdChan chan *Response, rn RaftNode) {
+func serve(conn *net.TCPConn, clientId int64, cmdChan chan *Response, rn RaftNode, fsStruct *fs.FS) {
 
 	reader := bufio.NewReader(conn)
 
@@ -127,7 +127,7 @@ func serve(conn *net.TCPConn, clientId int64, cmdChan chan *Response, rn RaftNod
 				break
 			}
 		} else {
-			respMsg = fs.ProcessMsg(msg)
+			respMsg = fs.ProcessMsg(msg, fsStruct)
 		}
 
 		// response := fs.ProcessMsg(msg)
@@ -155,6 +155,8 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 	// Initialize raft node and spawn independent go routine
 	rn := initRaftNode(id, peers, jsonFile)
 	go rn.processEvents()
+
+	var fsStruct = &fs.FS{Dir: make(map[string]*fs.FileInfo, 1000)}
 
 	// open listen port for client connections
 	connString := getConnStringById(id, jsonFile)
@@ -198,7 +200,7 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 							// server facing problem with message decoding
 							fmt.Println("Error: decoding message after replication")
 						} else {
-							response := fs.ProcessMsg(&msngMsgDecoded)
+							response := fs.ProcessMsg(&msngMsgDecoded, fsStruct)
 							clientIdToChanMap[msngMsgDecoded.ClientId] <- &Response{response, nil}
 						}
 					}
@@ -209,7 +211,7 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 				// server facing problem with messafe decoding
 				fmt.Println("Error: decoding message after replication")
 			} else {
-				response := fs.ProcessMsg(&msg)
+				response := fs.ProcessMsg(&msg, fsStruct)
 				clientIdToChanMap[msg.ClientId] <- &Response{response, cmtInfo.err}
 			}
 			lastIndexPrcsd = cmtInfo.index
@@ -221,7 +223,7 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 		check(err)
 		clientId = (clientId + 1) % math.MaxInt64
 		clientIdToChanMap[clientId] = make(chan *Response)
-		go serve(tcp_conn, clientId, clientIdToChanMap[clientId], rn)
+		go serve(tcp_conn, clientId, clientIdToChanMap[clientId], rn, fsStruct)
 	}
 }
 

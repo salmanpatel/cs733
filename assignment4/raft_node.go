@@ -3,11 +3,12 @@ package main
 import (
 	"encoding/gob"
 	"errors"
-	"fmt"
+	// "fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
 	//	"os"
 	//	"reflect"
+	"math/rand"
 	"strconv"
 	"time"
 )
@@ -57,7 +58,7 @@ type PersistentStateAttrs struct {
 func initRaftNode(id int64, peers []NetConfig, jsonFile string) RaftNode {
 	// peers := prepareRaftNodeConfigObj()
 	//initRaftStateFile("PersistentData_" + strconv.Itoa((i+1)*100))
-	rn := New(RaftNodeConfig{peers, id, "dir" + strconv.FormatInt(id, 10), 1000, 200}, jsonFile)
+	rn := New(RaftNodeConfig{peers, id, "dir" + strconv.FormatInt(id, 10), 1000 + (id/100)*100, 400}, jsonFile)
 	return rn
 }
 
@@ -88,6 +89,7 @@ func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {
 		rn.timeoutCh <- true
 	}()*/
 	rn.timer = time.NewTimer(time.Duration(RandInt(rnConfig.electionTO)) * time.Millisecond)
+	rand.Seed(time.Now().UnixNano())
 
 	return rn
 }
@@ -204,7 +206,7 @@ func (rn *RaftNode) processEvents() {
 			}
 		case ev = <-rn.eventCh:
 		case <-rn.timer.C:
-			fmt.Printf("%v %v Timeout\n", rn.Id(), rn.sm.state)
+			// fmt.Printf("%v %v Timeout\n", rn.Id(), rn.sm.state)
 			ev = TimeoutEv{}
 		case inboxEv := <-rn.nwHandler.Inbox():
 			//if rn.sm.state == "Leader" {

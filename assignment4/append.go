@@ -2,7 +2,7 @@ package main
 
 import "errors"
 
-//import "fmt"
+import "fmt"
 
 type AppendEv struct {
 	Data []byte
@@ -22,7 +22,7 @@ func (sm *StateMachine) AppendEH(ev AppendEv) []interface{} {
 }
 
 func (sm *StateMachine) LeaderAppendEH(ev AppendEv) []interface{} {
-	// fmt.Printf("%v append called \n", sm.config.serverId)
+	fmt.Printf("%v Append accepted \n", sm.config.serverId)
 	var actions []interface{}
 	sm.log = append(sm.log, LogEntry{sm.term, ev.Data})
 	actions = append(actions, LogStoreAc{int64(len(sm.log) - 1), sm.term, ev.Data})

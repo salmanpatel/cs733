@@ -6,7 +6,7 @@ import (
 	"github.com/cs733-iitb/log"
 	//"io/ioutil"
 	"os"
-	//"runtime"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -97,6 +97,7 @@ func expect(t *testing.T, response *Msg, expected *Msg, errstr string, err error
 	}
 }
 
+/*
 func TestRPC_BasicSequential(t *testing.T) {
 	cl := mkClient(t, "localhost:9001")
 	defer cl.close()
@@ -104,24 +105,24 @@ func TestRPC_BasicSequential(t *testing.T) {
 	// Read non-existent file cs733net
 	m, err := cl.read("cs733net")
 	expect(t, m, &Msg{Kind: 'F'}, "file not found", err)
-	fmt.Println("cl.read(cs733net) pass")
+	//fmt.Println("cl.read(cs733net) pass")
 
 	// Read non-existent file cs733net
 	cl, m, err = cl.sendDeleteCommand(t, "cs733net")
 	expect(t, m, &Msg{Kind: 'F'}, "file not found", err)
-	fmt.Println("sendDeleteCommand(t,cs733net) pass")
+	//fmt.Println("sendDeleteCommand(t,cs733net) pass")
 	// fmt.Printf("conn value after delete: %v \n", cl)
 
 	// Write file cs733net
 	data := "Cloud fun"
 	cl, m, err = cl.sendWriteCommand(t, "cs733net", data, 0)
 	expect(t, m, &Msg{Kind: 'O'}, "write success", err)
-	fmt.Println("cl.sendWriteCommand(t,cs733net, data, 0) pass")
+	//fmt.Println("cl.sendWriteCommand(t,cs733net, data, 0) pass")
 
 	// Expect to read it back
 	m, err = cl.read("cs733net")
 	expect(t, m, &Msg{Kind: 'C', Contents: []byte(data)}, "read my write", err)
-	fmt.Println("cl.read(cs733net) pass")
+	//fmt.Println("cl.read(cs733net) pass")
 
 	// CAS in new value
 	version1 := m.Version
@@ -129,32 +130,142 @@ func TestRPC_BasicSequential(t *testing.T) {
 	// Cas new value
 	cl, m, err = cl.sendCasCommand(t, "cs733net", version1, data2, 0)
 	expect(t, m, &Msg{Kind: 'O'}, "cas success", err)
-	fmt.Println("sendCasCommand(t, cs733net, version1, data2, 0) pass")
+	//fmt.Println("sendCasCommand(t, cs733net, version1, data2, 0) pass")
 
 	// Expect to read it back
 	m, err = cl.read("cs733net")
 	expect(t, m, &Msg{Kind: 'C', Contents: []byte(data2)}, "read my cas", err)
-	fmt.Println("read(cs733net) pass")
+	//fmt.Println("read(cs733net) pass")
 
 	// Expect Cas to fail with old version
 	cl, m, err = cl.sendCasCommand(t, "cs733net", version1, data, 0)
 	expect(t, m, &Msg{Kind: 'V'}, "cas version mismatch", err)
-	fmt.Println("sendCasCommand(t, cs733net, version1, data, 0)")
+	//fmt.Println("sendCasCommand(t, cs733net, version1, data, 0)")
 
 	// Expect a failed cas to not have succeeded. Read should return data2.
 	m, err = cl.read("cs733net")
 	expect(t, m, &Msg{Kind: 'C', Contents: []byte(data2)}, "failed cas to not have succeeded", err)
-	fmt.Println("read(cs733net)")
+	//fmt.Println("read(cs733net)")
 
 	// sendDeleteCommand
 	cl, m, err = cl.sendDeleteCommand(t, "cs733net")
 	expect(t, m, &Msg{Kind: 'O'}, "delete success", err)
-	fmt.Printf("sendDeleteCommand(t,cs733net)")
+	//fmt.Printf("sendDeleteCommand(t,cs733net)")
 
 	// Expect to not find the file
 	m, err = cl.read("cs733net")
 	expect(t, m, &Msg{Kind: 'F'}, "file not found", err)
-	fmt.Println("read(cs733net)")
+	//fmt.Println("read(cs733net)")
+
+	fmt.Println("TestRPC_BasicSequential Pass")
+}
+
+func TestRPC_Binary(t *testing.T) {
+	cl := mkClient(t, "localhost:9001")
+	defer cl.close()
+
+	// Write binary contents
+	data := "\x00\x01\r\n\x03" // some non-ascii, some crlf chars
+	cl, m, err := cl.sendWriteCommand(t,"binfile", data, 0)
+	expect(t, m, &Msg{Kind: 'O'}, "write success", err)
+
+	// Expect to read it back
+	m, err = cl.read("binfile")
+	expect(t, m, &Msg{Kind: 'C', Contents: []byte(data)}, "read my write", err)
+
+	fmt.Println("TestRPC_Binary Pass")
+}
+*/
+
+/*
+func TestRPC_Chunks(t *testing.T) {
+	// Should be able to accept a few bytes at a time
+	cl := mkClient(t)
+	defer cl.close()
+	var err error
+	snd := func(chunk string) {
+		if err == nil {
+			err = cl.send(chunk)
+		}
+	}
+
+	// Send the command "write teststream 10\r\nabcdefghij\r\n" in multiple chunks
+	// Nagle's algorithm is disabled on a write, so the server should get these in separate TCP packets.
+	var m *Msg
+	/
+	m.Kind = 'R'
+	while()
+	snd("wr")
+	time.Sleep(10 * time.Millisecond)
+	snd("ite test")
+	time.Sleep(10 * time.Millisecond)
+	snd("stream 1")
+	time.Sleep(10 * time.Millisecond)
+	snd("0\r\nabcdefghij\r")
+	time.Sleep(10 * time.Millisecond)
+	snd("\n")
+
+	m, err = cl.rcv()
+	expect(t, m, &Msg{Kind: 'O'}, "writing in chunks should work", err)
+}*/
+
+func TestRPC_BasicTimer(t *testing.T) {
+	runtime.GOMAXPROCS(4)
+
+	cl := mkClient(t, "localhost:9001")
+	defer cl.close()
+
+	// Write file cs733, with expiry time of 2 seconds
+	str := "Cloud fun"
+	cl, m, err := cl.sendWriteCommand(t, "cs733", str, 2)
+	expect(t, m, &Msg{Kind: 'O'}, "write success", err)
+
+	// Expect to read it back immediately.
+	m, err = cl.read("cs733")
+	expect(t, m, &Msg{Kind: 'C', Contents: []byte(str)}, "read my cas", err)
+
+	time.Sleep(3 * time.Second)
+
+	// Expect to not find the file after expiry
+	m, err = cl.read("cs733")
+	expect(t, m, &Msg{Kind: 'F'}, "file not found", err)
+
+	// Recreate the file with expiry time of 1 second
+	cl, m, err = cl.sendWriteCommand(t, "cs733", str, 1)
+	expect(t, m, &Msg{Kind: 'O'}, "file recreated", err)
+
+	// Overwrite the file with expiry time of 4. This should be the new time.
+	cl, m, err = cl.sendWriteCommand(t, "cs733", str, 3)
+	expect(t, m, &Msg{Kind: 'O'}, "file overwriten with exptime=4", err)
+
+	// The last expiry time was 3 seconds. We should expect the file to still be around 2 seconds later
+	time.Sleep(2 * time.Second)
+
+	// Expect the file to not have expired.
+	m, err = cl.read("cs733")
+	expect(t, m, &Msg{Kind: 'C', Contents: []byte(str)}, "file to not expire until 4 sec", err)
+
+	time.Sleep(3 * time.Second)
+	// 5 seconds since the last write. Expect the file to have expired
+	m, err = cl.read("cs733")
+	expect(t, m, &Msg{Kind: 'F'}, "file not found after 4 sec", err)
+
+	// Create the file with an expiry time of 1 sec. We're going to delete it
+	// then immediately create it. The new file better not get deleted.
+	cl, m, err = cl.sendWriteCommand(t, "cs733", str, 5)
+	expect(t, m, &Msg{Kind: 'O'}, "file created for delete", err)
+
+	cl, m, err = cl.sendDeleteCommand(t, "cs733")
+	expect(t, m, &Msg{Kind: 'O'}, "deleted ok", err)
+
+	cl, m, err = cl.sendWriteCommand(t, "cs733", str, 0) // No expiry
+	expect(t, m, &Msg{Kind: 'O'}, "file recreated", err)
+
+	time.Sleep(1100 * time.Millisecond) // A little more than 1 sec
+	m, err = cl.read("cs733")
+	expect(t, m, &Msg{Kind: 'C'}, "file should not be deleted", err)
+
+	fmt.Println("TestRPC_BasicTimer Pass")
 }
 
 func mkClient(t *testing.T, connString string) *Client {
