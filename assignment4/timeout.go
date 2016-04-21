@@ -38,11 +38,13 @@ func (sm *StateMachine) FollowerCandidateTimeoutEH(ev TimeoutEv) []interface{} {
 		actions = append(actions, SendAc{sm.config.peerIds[i], VoteReqEv{sm.term, sm.config.serverId, int64(len(sm.log) - 1), term}})
 	}
 	sm.yesVotes = 1
+	sm.noVotes = 0
 	return actions
 }
 
 func (sm *StateMachine) LeaderTimeoutEH(ev TimeoutEv) []interface{} {
 	var actions []interface{}
+	actions = append(actions, AlarmAc{sm.heartbeatTO})
 	for i := 0; i < len(sm.config.peerIds); i++ {
 		prevLogTerm := int64(0)
 		if sm.nextIndex[i] != 0 {
@@ -50,6 +52,6 @@ func (sm *StateMachine) LeaderTimeoutEH(ev TimeoutEv) []interface{} {
 		}
 		actions = append(actions, SendAc{sm.config.peerIds[i], AppendEntriesReqEv{sm.term, sm.config.serverId, sm.nextIndex[i] - 1, prevLogTerm, sm.log[sm.nextIndex[i]:], sm.commitIndex}})
 	}
-	actions = append(actions, AlarmAc{sm.heartbeatTO})
+
 	return actions
 }

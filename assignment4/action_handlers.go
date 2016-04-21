@@ -1,7 +1,7 @@
 package main
 
 import (
-	// "fmt"
+	_ "fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
 	//	"reflect"
@@ -42,7 +42,8 @@ func (rn *RaftNode) ProcessCommitAc(action CommitAc) {
 }
 
 func (rn *RaftNode) ProcessLogStoreAc(action LogStoreAc) {
-	// fmt.Printf("%v ProcessLogStoreAc \n", rn.Id())
+	//	fmt.Printf("%v ProcessLogStoreAc \n", rn.Id())
+	//fmt.Printf("log store start: %v\n",time.Now())
 	logFP, err := log.Open(rn.logDir + "/" + LogFile)
 	logFP.RegisterSampleEntry(LogEntry{})
 	assert(err == nil)
@@ -50,6 +51,7 @@ func (rn *RaftNode) ProcessLogStoreAc(action LogStoreAc) {
 	assert(int64(logFP.GetLastIndex()+1) >= action.index)
 	logFP.TruncateToEnd(int64(action.index))
 	logFP.Append(LogEntry{action.term, action.data})
+	//fmt.Printf("log store end: %v\n",time.Now())
 }
 
 func (rn *RaftNode) ProcessStateStoreAc(action StateStoreAc) {

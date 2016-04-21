@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
 )
 
 var crlf = []byte{'\r', '\n'}
@@ -70,7 +71,8 @@ func reply(conn *net.TCPConn, msg *fs.Msg) bool {
 	return err == nil
 }
 
-func serve(conn *net.TCPConn, clientId int64, cmdChan chan *Response, rn RaftNode, fsStruct *fs.FS) {
+func serve(conn *net.TCPConn, clientId int64, cmdChan chan *Response, rn RaftNode, fsStruct *fs.FS, gversion *int) {
+	//fmt.Println("Inside Serve")
 
 	reader := bufio.NewReader(conn)
 
@@ -127,7 +129,7 @@ func serve(conn *net.TCPConn, clientId int64, cmdChan chan *Response, rn RaftNod
 				break
 			}
 		} else {
-			respMsg = fs.ProcessMsg(msg, fsStruct)
+			respMsg = fs.ProcessMsg(msg, fsStruct, gversion)
 		}
 
 		// response := fs.ProcessMsg(msg)
@@ -156,7 +158,11 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 	rn := initRaftNode(id, peers, jsonFile)
 	go rn.processEvents()
 
+	// In-memory directory that stores all files
 	var fsStruct = &fs.FS{Dir: make(map[string]*fs.FileInfo, 1000)}
+
+	// Global version maintained across all files
+	var gversion = 0
 
 	// open listen port for client connections
 	connString := getConnStringById(id, jsonFile)
@@ -169,7 +175,7 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 	gob.Register(MsgStruct{})
 
 	// used as an indentified for different client connections
-	var clientId int64 = 0
+	var clientId int64 = rn.Id() / 100
 
 	// manage index that is processed last
 	var lastIndexPrcsd int64 = -1
@@ -177,6 +183,7 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 	// map to maintain client id to channel mapping, so that after reading command
 	// from commit channel it can be put to appropriate client channel
 	clientIdToChanMap := make(map[int64]chan *Response)
+	var mapLock sync.RWMutex
 
 	// go routine to listen on commit channel from a raft node
 	go func() {
@@ -189,7 +196,7 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 				if cmtInfo.index != lastIndexPrcsd+1 {
 					// handleMissingCmnds()
 					for i := lastIndexPrcsd + 1; i < cmtInfo.index; i++ {
-						fmt.Printf("Processing missing indexes: %v\n", i)
+						//fmt.Printf("Processing missing indexes: %v\n", i)
 						err, msngMsg := rn.Get(int(i))
 						if err != nil {
 							// invalid index has been requested
@@ -200,8 +207,13 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 							// server facing problem with message decoding
 							fmt.Println("Error: decoding message after replication")
 						} else {
-							response := fs.ProcessMsg(&msngMsgDecoded, fsStruct)
-							clientIdToChanMap[msngMsgDecoded.ClientId] <- &Response{response, nil}
+							response := fs.ProcessMsg(&msngMsgDecoded, fsStruct, &gversion)
+							tempRes := &Response{response, nil}
+							mapLock.Lock()
+							if _, ok := clientIdToChanMap[msngMsgDecoded.ClientId]; ok {
+								clientIdToChanMap[msngMsgDecoded.ClientId] <- tempRes
+							}
+							mapLock.Unlock()
 						}
 					}
 				}
@@ -211,19 +223,30 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 				// server facing problem with messafe decoding
 				fmt.Println("Error: decoding message after replication")
 			} else {
-				response := fs.ProcessMsg(&msg, fsStruct)
-				clientIdToChanMap[msg.ClientId] <- &Response{response, cmtInfo.err}
+				response := fs.ProcessMsg(&msg, fsStruct, &gversion)
+				tempRes := &Response{response, cmtInfo.err}
+				mapLock.Lock()
+				if _, ok := clientIdToChanMap[msg.ClientId]; ok {
+					clientIdToChanMap[msg.ClientId] <- tempRes
+				}
+				mapLock.Unlock()
 			}
-			lastIndexPrcsd = cmtInfo.index
+			if cmtInfo.index != -1 {
+				lastIndexPrcsd = cmtInfo.index
+			}
 		}
 	}()
 
 	for {
 		tcp_conn, err := tcp_acceptor.AcceptTCP()
 		check(err)
-		clientId = (clientId + 1) % math.MaxInt64
+		//fmt.Println("Connection establised")
+		// make sure that client id's do not coincide across servers
+		clientId = (clientId + int64(len(peers))) % math.MaxInt64
+		mapLock.Lock()
 		clientIdToChanMap[clientId] = make(chan *Response)
-		go serve(tcp_conn, clientId, clientIdToChanMap[clientId], rn, fsStruct)
+		mapLock.Unlock()
+		go serve(tcp_conn, clientId, clientIdToChanMap[clientId], rn, fsStruct, &gversion)
 	}
 }
 

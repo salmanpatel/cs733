@@ -1,6 +1,10 @@
 package main
 
-import "math/rand"
+import (
+	"errors"
+	_ "fmt"
+	"math/rand"
+)
 
 //import "time"
 
@@ -55,6 +59,17 @@ func RandInt(min int64) int64 {
 	//rand.Seed(time.Now().UnixNano())
 	return min + rand.Int63n(min)
 	//	return min
+}
+
+func (sm *StateMachine) HandleOutstandingCmd() []interface{} {
+	fmt.Printf("%v outstanding writes from index %v to %v\n", sm.config.serverId, sm.commitIndex+1, len(sm.log))
+	var actions []interface{}
+	for i := int(sm.commitIndex) + 1; i < len(sm.log); i++ {
+		//fmt.Printf("%v redirection for index %v\n",sm.config.serverId, i)
+		// actions := append(actions, C)
+		actions = append(actions, CommitAc{int64(-1), sm.log[i].Data, errors.New("Not a Leader")})
+	}
+	return actions
 }
 
 /*

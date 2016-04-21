@@ -2,7 +2,7 @@ package main
 
 import (
 	//"encoding/json"
-	"fmt"
+	_ "fmt"
 	"github.com/cs733-iitb/log"
 	//"io/ioutil"
 	"os"
@@ -66,7 +66,7 @@ func InitServer() {
 		initRaftStateFile("dir" + strconv.FormatInt(peer.id, 10))
 		go serverMain(peer.id, peers, jsonFile)
 	}
-	time.Sleep(3 * time.Second)
+	time.Sleep(5 * time.Second)
 }
 
 func TestSimple(t *testing.T) {
@@ -98,7 +98,6 @@ func expect(t *testing.T, response *Msg, expected *Msg, errstr string, err error
 	}
 }
 
-/*
 func TestRPC_BasicSequential(t *testing.T) {
 	cl := mkClient(t, "localhost:9001")
 	defer cl.close()
@@ -162,56 +161,23 @@ func TestRPC_BasicSequential(t *testing.T) {
 }
 
 func TestRPC_Binary(t *testing.T) {
-	cl := mkClient(t, "localhost:9001")
+	cl := mkClient(t, "localhost:9003")
 	defer cl.close()
 
 	// Write binary contents
 	data := "\x00\x01\r\n\x03" // some non-ascii, some crlf chars
-	cl, m, err := cl.sendWriteCommand(t,"binfile", data, 0)
+	cl, m, err := cl.sendWriteCommand(t, "binfile", data, 0)
 	expect(t, m, &Msg{Kind: 'O'}, "write success", err)
 
 	// Expect to read it back
 	m, err = cl.read("binfile")
 	expect(t, m, &Msg{Kind: 'C', Contents: []byte(data)}, "read my write", err)
 
-	fmt.Println("TestRPC_Binary Pass")
-}
-*/
-
-/*
-func TestRPC_Chunks(t *testing.T) {
-	// Should be able to accept a few bytes at a time
-	cl := mkClient(t)
-	defer cl.close()
-	var err error
-	snd := func(chunk string) {
-		if err == nil {
-			err = cl.send(chunk)
-		}
-	}
-
-	// Send the command "write teststream 10\r\nabcdefghij\r\n" in multiple chunks
-	// Nagle's algorithm is disabled on a write, so the server should get these in separate TCP packets.
-	var m *Msg
-	/
-	m.Kind = 'R'
-	while()
-	snd("wr")
-	time.Sleep(10 * time.Millisecond)
-	snd("ite test")
-	time.Sleep(10 * time.Millisecond)
-	snd("stream 1")
-	time.Sleep(10 * time.Millisecond)
-	snd("0\r\nabcdefghij\r")
-	time.Sleep(10 * time.Millisecond)
-	snd("\n")
-
-	m, err = cl.rcv()
-	expect(t, m, &Msg{Kind: 'O'}, "writing in chunks should work", err)
+	//fmt.Println("TestRPC_Binary Pass")
 }
 
 func TestRPC_BasicTimer(t *testing.T) {
-	runtime.GOMAXPROCS(4)
+	//fmt.Println("Testing TestRPC_BasicTimer")
 
 	cl := mkClient(t, "localhost:9001")
 	defer cl.close()
@@ -266,15 +232,15 @@ func TestRPC_BasicTimer(t *testing.T) {
 	m, err = cl.read("cs733")
 	expect(t, m, &Msg{Kind: 'C'}, "file should not be deleted", err)
 
-	fmt.Println("TestRPC_BasicTimer Pass")
-}*/
+	//fmt.Println("TestRPC_BasicTimer Pass")
+}
 
 // nclients write to the same file. At the end the file should be
 // any one clients' last write
 
 func TestRPC_ConcurrentWrites(t *testing.T) {
-	nclients := 15
-	niters := 2
+	nclients := 35
+	niters := 5
 	clients := make([]*Client, nclients)
 	for i := 0; i < nclients; i++ {
 		cl := mkClient(t, "localhost:9001")
@@ -297,6 +263,7 @@ func TestRPC_ConcurrentWrites(t *testing.T) {
 				var m *Msg
 				var err error
 				clients[i], m, err = clients[i].sendWriteCommand(t, "concWrite", str, 0)
+				// fmt.Printf("write cl %d %d successfull\n", i,j)
 				if err != nil {
 					errCh <- err
 					break
@@ -323,8 +290,81 @@ func TestRPC_ConcurrentWrites(t *testing.T) {
 	m, _ := clients[0].read("concWrite")
 	// Ensure the contents are of the form "cl <i> 9"
 	// The last write of any client ends with " 9"
-	if !(m.Kind == 'C' && strings.HasSuffix(string(m.Contents), " 1")) {
+	if !(m.Kind == 'C' && strings.HasSuffix(string(m.Contents), " 4")) {
 		t.Fatalf("Expected to be able to read after 1000 writes. Got msg = %v", m)
+	}
+}
+
+// nclients cas to the same file. At the end the file should be any one clients' last write.
+// The only difference between this test and the ConcurrentWrite test above is that each
+// client loops around until each CAS succeeds. The number of concurrent clients has been
+// reduced to keep the testing time within limits.
+func TestRPC_ConcurrentCas(t *testing.T) {
+	nclients := 10
+	niters := 2
+
+	clients := make([]*Client, nclients)
+	for i := 0; i < nclients; i++ {
+		cl := mkClient(t, "localhost:9001")
+		if cl == nil {
+			t.Fatalf("Unable to create client #%d", i)
+		}
+		defer cl.close()
+		clients[i] = cl
+	}
+
+	var sem sync.WaitGroup // Used as a semaphore to coordinate goroutines to *begin* concurrently
+	sem.Add(1)
+
+	var m *Msg
+	clients[0], m, _ = clients[0].sendWriteCommand(t, "concCas", "first", 0)
+	ver := m.Version
+	if m.Kind != 'O' || ver == 0 {
+		t.Fatalf("Expected write to succeed and return version")
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(nclients)
+
+	errorCh := make(chan error, nclients)
+
+	for i := 0; i < nclients; i++ {
+		go func(i int, ver int, cl *Client) {
+			sem.Wait()
+			defer wg.Done()
+			for j := 0; j < niters; j++ {
+				str := fmt.Sprintf("cl %d %d", i, j)
+				for {
+					var err error
+					var m *Msg
+					cl, m, err = cl.sendCasCommand(t, "concCas", ver, str, 0)
+					if err != nil {
+						errorCh <- err
+						return
+					} else if m.Kind == 'O' {
+						// fmt.Printf("cas %d %d successfull\n", i,j)
+						break
+					} else if m.Kind != 'V' {
+						errorCh <- errors.New(fmt.Sprintf("Expected 'V' msg, got %c", m.Kind))
+						return
+					}
+					ver = m.Version // retry with latest version
+				}
+			}
+		}(i, ver, clients[i])
+	}
+
+	time.Sleep(100 * time.Millisecond) // give goroutines a chance
+	sem.Done()                         // Start goroutines
+	wg.Wait()                          // Wait for them to finish
+	select {
+	case e := <-errorCh:
+		t.Fatalf("Error received while doing cas: %v", e)
+	default: // no errors
+	}
+	m, _ = clients[0].read("concCas")
+	if !(m.Kind == 'C' && strings.HasSuffix(string(m.Contents), " 1")) {
+		t.Fatalf("Expected to be able to read after 1000 writes. Got msg.Kind = %d, msg.Contents=%s", m.Kind, m.Contents)
 	}
 }
 
@@ -515,6 +555,7 @@ func (cl *Client) sendDeleteCommand(t *testing.T, filename string) (c *Client, m
 			return cl, msg, err
 		}
 		cl.close()
+		//fmt.Printf("Redirection: %v\n", string(msg.Contents[:]))
 		cl = mkClient(t, string(msg.Contents[:]))
 	}
 	return cl, msg, err
@@ -533,6 +574,7 @@ func (cl *Client) sendWriteCommand(t *testing.T, filename string, contents strin
 			return cl, msg, err
 		}
 		cl.close()
+		//fmt.Printf("Redirection: %v\n", string(msg.Contents[:]))
 		cl = mkClient(t, string(msg.Contents[:]))
 	}
 	return cl, msg, err
@@ -550,6 +592,7 @@ func (cl *Client) sendCasCommand(t *testing.T, filename string, version int, con
 			return cl, msg, err
 		}
 		cl.close()
+		//mt.Printf("Redirection: %v\n", string(msg.Contents[:]))
 		cl = mkClient(t, string(msg.Contents[:]))
 	}
 	return cl, msg, err

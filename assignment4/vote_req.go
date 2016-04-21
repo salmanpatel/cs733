@@ -32,6 +32,10 @@ func (sm *StateMachine) LeaderCandidateVoteReqEH(ev VoteReqEv) []interface{} {
 	if sm.term < ev.Term {
 		sm.term = ev.Term
 		sm.votedFor = 0
+		if sm.state == "Leader" {
+			outstandingCmdAc := sm.HandleOutstandingCmd()
+			actions = append(actions, outstandingCmdAc...)
+		}
 		sm.state = "Follower"
 		actions = append(actions, AlarmAc{RandInt(sm.electionTO)})
 		term := int64(0)

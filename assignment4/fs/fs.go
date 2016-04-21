@@ -20,7 +20,7 @@ type FS struct {
 }
 
 // var fs = &FS{dir: make(map[string]*FileInfo, 1000)}
-var gversion = 0 // global version
+// var gversion = 0 // global version
 
 func (fi *FileInfo) cancelTimer() {
 	if fi.timer != nil {
@@ -29,14 +29,14 @@ func (fi *FileInfo) cancelTimer() {
 	}
 }
 
-func ProcessMsg(msg *Msg, fs *FS) *Msg {
+func ProcessMsg(msg *Msg, fs *FS, gversion *int) *Msg {
 	switch msg.Kind {
 	case 'r':
 		return processRead(msg, fs)
 	case 'w':
-		return processWrite(msg, fs)
+		return processWrite(msg, fs, gversion)
 	case 'c':
-		return processCas(msg, fs)
+		return processCas(msg, fs, gversion)
 	case 'd':
 		return processDelete(msg, fs)
 	}
@@ -71,7 +71,7 @@ func processRead(msg *Msg, fs *FS) *Msg {
 	}
 }
 
-func internalWrite(msg *Msg, fs *FS) *Msg {
+func internalWrite(msg *Msg, fs *FS, gversion *int) *Msg {
 	fi := fs.Dir[msg.Filename]
 	if fi != nil {
 		fi.cancelTimer()
@@ -79,10 +79,10 @@ func internalWrite(msg *Msg, fs *FS) *Msg {
 		fi = &FileInfo{}
 	}
 
-	gversion += 1
+	*gversion += 1
 	fi.filename = msg.Filename
 	fi.contents = msg.Contents
-	fi.version = gversion
+	fi.version = *gversion
 
 	var absexptime time.Time
 	if msg.Exptime > 0 {
@@ -95,23 +95,23 @@ func internalWrite(msg *Msg, fs *FS) *Msg {
 					Filename: name,
 					Version:  ver}, fs)
 			}
-		}(msg.Filename, gversion)
+		}(msg.Filename, *gversion)
 
 		fi.timer = time.AfterFunc(dur, timerFunc)
 	}
 	fi.absexptime = absexptime
 	fs.Dir[msg.Filename] = fi
 
-	return ok(gversion)
+	return ok(*gversion)
 }
 
-func processWrite(msg *Msg, fs *FS) *Msg {
+func processWrite(msg *Msg, fs *FS, gversion *int) *Msg {
 	fs.Lock()
 	defer fs.Unlock()
-	return internalWrite(msg, fs)
+	return internalWrite(msg, fs, gversion)
 }
 
-func processCas(msg *Msg, fs *FS) *Msg {
+func processCas(msg *Msg, fs *FS, gversion *int) *Msg {
 	fs.Lock()
 	defer fs.Unlock()
 
@@ -120,7 +120,7 @@ func processCas(msg *Msg, fs *FS) *Msg {
 			return &Msg{Kind: 'V', Version: fi.version}
 		}
 	}
-	return internalWrite(msg, fs)
+	return internalWrite(msg, fs, gversion)
 }
 
 func processDelete(msg *Msg, fs *FS) *Msg {

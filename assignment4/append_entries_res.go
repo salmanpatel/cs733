@@ -39,6 +39,8 @@ func (sm *StateMachine) LeaderAppendEntriesResEH(ev AppendEntriesResEv) []interf
 			sm.term = ev.Term
 			sm.votedFor = 0
 			sm.state = "Follower"
+			outstandingCmdAc := sm.HandleOutstandingCmd()
+			actions = append(actions, outstandingCmdAc...)
 			actions = append(actions, AlarmAc{RandInt(sm.electionTO)})
 			actions = append(actions, StateStoreAc{sm.term, sm.state, sm.votedFor})
 		} else {

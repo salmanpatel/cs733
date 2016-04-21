@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/gob"
 	"errors"
-	"fmt"
+	_ "fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
 	//	"os"
@@ -58,7 +58,7 @@ type PersistentStateAttrs struct {
 func initRaftNode(id int64, peers []NetConfig, jsonFile string) RaftNode {
 	// peers := prepareRaftNodeConfigObj()
 	//initRaftStateFile("PersistentData_" + strconv.Itoa((i+1)*100))
-	rn := New(RaftNodeConfig{peers, id, "dir" + strconv.FormatInt(id, 10), 1500, 400}, jsonFile)
+	rn := New(RaftNodeConfig{peers, id, "dir" + strconv.FormatInt(id, 10), 6000, 500}, jsonFile)
 	return rn
 }
 
@@ -206,9 +206,9 @@ func (rn *RaftNode) processEvents() {
 			}
 		case ev = <-rn.eventCh:
 		case <-rn.timer.C:
-			if rn.sm.state == "Follower" {
-				fmt.Printf("%v %v Timeout\n", rn.Id(), rn.sm.state)
-			}
+			//if rn.sm.state == "Follower" {
+			//	fmt.Printf("%v %v Timeout\n", rn.Id(), rn.sm.state)
+			//}
 			ev = TimeoutEv{}
 		case inboxEv := <-rn.nwHandler.Inbox():
 			//if rn.sm.state == "Leader" {
@@ -216,6 +216,9 @@ func (rn *RaftNode) processEvents() {
 			//}
 			switch inboxEv.Msg.(type) {
 			case AppendEntriesReqEv:
+				//if rn.sm.state == "Follower" && rn.Id()==200 {
+				//	fmt.Println(inboxEv.Msg.(AppendEntriesReqEv))
+				//}
 				rn.eventCh <- inboxEv.Msg.(AppendEntriesReqEv)
 			case AppendEntriesResEv:
 				rn.eventCh <- inboxEv.Msg.(AppendEntriesResEv)
