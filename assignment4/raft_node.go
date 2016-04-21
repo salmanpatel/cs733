@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/gob"
 	"errors"
-	// "fmt"
+	"fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
 	//	"os"
@@ -58,16 +58,16 @@ type PersistentStateAttrs struct {
 func initRaftNode(id int64, peers []NetConfig, jsonFile string) RaftNode {
 	// peers := prepareRaftNodeConfigObj()
 	//initRaftStateFile("PersistentData_" + strconv.Itoa((i+1)*100))
-	rn := New(RaftNodeConfig{peers, id, "dir" + strconv.FormatInt(id, 10), 1000 + (id/100)*100, 400}, jsonFile)
+	rn := New(RaftNodeConfig{peers, id, "dir" + strconv.FormatInt(id, 10), 1500, 400}, jsonFile)
 	return rn
 }
 
 func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {
 	var rn RaftNode
-	rn.eventCh = make(chan interface{}, 100)
+	rn.eventCh = make(chan interface{}, 100000)
 	//rn.timeoutCh = make(chan bool)
 	rn.shutdownSig = make(chan bool)
-	rn.commitCh = make(chan CommitInfo, 100)
+	rn.commitCh = make(chan CommitInfo, 5000)
 	// rn.parTOs = 0
 	rn.logDir = rnConfig.logDir
 
@@ -206,7 +206,9 @@ func (rn *RaftNode) processEvents() {
 			}
 		case ev = <-rn.eventCh:
 		case <-rn.timer.C:
-			// fmt.Printf("%v %v Timeout\n", rn.Id(), rn.sm.state)
+			if rn.sm.state == "Follower" {
+				fmt.Printf("%v %v Timeout\n", rn.Id(), rn.sm.state)
+			}
 			ev = TimeoutEv{}
 		case inboxEv := <-rn.nwHandler.Inbox():
 			//if rn.sm.state == "Leader" {

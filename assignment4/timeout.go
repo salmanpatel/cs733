@@ -50,6 +50,6 @@ func (sm *StateMachine) LeaderTimeoutEH(ev TimeoutEv) []interface{} {
 		}
 		actions = append(actions, SendAc{sm.config.peerIds[i], AppendEntriesReqEv{sm.term, sm.config.serverId, sm.nextIndex[i] - 1, prevLogTerm, sm.log[sm.nextIndex[i]:], sm.commitIndex}})
 	}
-	actions = append(actions, AlarmAc{RandInt(sm.heartbeatTO)})
+	actions = append(actions, AlarmAc{sm.heartbeatTO})
 	return actions
 }

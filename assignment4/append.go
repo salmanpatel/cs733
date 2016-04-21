@@ -33,6 +33,7 @@ func (sm *StateMachine) LeaderAppendEH(ev AppendEv) []interface{} {
 		}
 		actions = append(actions, SendAc{sm.config.peerIds[i], AppendEntriesReqEv{sm.term, sm.config.serverId, sm.nextIndex[i] - 1, prevTerm, sm.log[sm.nextIndex[i]:], sm.commitIndex}})
 	}
+	actions = append(actions, AlarmAc{sm.heartbeatTO})
 	return actions
 }
 

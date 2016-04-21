@@ -6,7 +6,8 @@ import (
 	"github.com/cs733-iitb/log"
 	//"io/ioutil"
 	"os"
-	"runtime"
+	"sync"
+	//"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -65,7 +66,7 @@ func InitServer() {
 		initRaftStateFile("dir" + strconv.FormatInt(peer.id, 10))
 		go serverMain(peer.id, peers, jsonFile)
 	}
-	time.Sleep(2 * time.Second)
+	time.Sleep(3 * time.Second)
 }
 
 func TestSimple(t *testing.T) {
@@ -207,7 +208,7 @@ func TestRPC_Chunks(t *testing.T) {
 
 	m, err = cl.rcv()
 	expect(t, m, &Msg{Kind: 'O'}, "writing in chunks should work", err)
-}*/
+}
 
 func TestRPC_BasicTimer(t *testing.T) {
 	runtime.GOMAXPROCS(4)
@@ -266,6 +267,65 @@ func TestRPC_BasicTimer(t *testing.T) {
 	expect(t, m, &Msg{Kind: 'C'}, "file should not be deleted", err)
 
 	fmt.Println("TestRPC_BasicTimer Pass")
+}*/
+
+// nclients write to the same file. At the end the file should be
+// any one clients' last write
+
+func TestRPC_ConcurrentWrites(t *testing.T) {
+	nclients := 15
+	niters := 2
+	clients := make([]*Client, nclients)
+	for i := 0; i < nclients; i++ {
+		cl := mkClient(t, "localhost:9001")
+		if cl == nil {
+			t.Fatalf("Unable to create client #%d", i)
+		}
+		defer cl.close()
+		clients[i] = cl
+	}
+
+	errCh := make(chan error, nclients)
+	var sem sync.WaitGroup // Used as a semaphore to coordinate goroutines to begin concurrently
+	sem.Add(1)
+	ch := make(chan *Msg, nclients*niters) // channel for all replies
+	for i := 0; i < nclients; i++ {
+		go func(i int, cl *Client) {
+			sem.Wait()
+			for j := 0; j < niters; j++ {
+				str := fmt.Sprintf("cl %d %d", i, j)
+				var m *Msg
+				var err error
+				clients[i], m, err = clients[i].sendWriteCommand(t, "concWrite", str, 0)
+				if err != nil {
+					errCh <- err
+					break
+				} else {
+					ch <- m
+				}
+			}
+		}(i, clients[i])
+	}
+	time.Sleep(100 * time.Millisecond) // give goroutines a chance
+	sem.Done()                         // Go!
+
+	// There should be no errors
+	for i := 0; i < nclients*niters; i++ {
+		select {
+		case m := <-ch:
+			if m.Kind != 'O' {
+				t.Fatalf("Concurrent write failed with kind=%c", m.Kind)
+			}
+		case err := <-errCh:
+			t.Fatal(err)
+		}
+	}
+	m, _ := clients[0].read("concWrite")
+	// Ensure the contents are of the form "cl <i> 9"
+	// The last write of any client ends with " 9"
+	if !(m.Kind == 'C' && strings.HasSuffix(string(m.Contents), " 1")) {
+		t.Fatalf("Expected to be able to read after 1000 writes. Got msg = %v", m)
+	}
 }
 
 func mkClient(t *testing.T, connString string) *Client {
@@ -428,7 +488,11 @@ func parseFirst(line string) (msg *Msg, err error) {
 		msg.Kind = 'I'
 	case "ERR_REDIRECT":
 		msg.Kind = 'R'
-		msg.Contents = []byte(fields[1])
+		if len(fields) < 2 {
+			msg.Contents = []byte("localhost:9001")
+		} else {
+			msg.Contents = []byte(fields[1])
+		}
 	default:
 		err = errors.New("Unknown response " + fields[0])
 	}
