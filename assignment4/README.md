@@ -1,7 +1,7 @@
-# cs733-assignment1
+# cs733
 
 
-## CS 733 (Spring-2015) - Assignment 1 - File Server
+## CS 733 (Spring-2015) - File Server
 
 Submitted by: Mohammedsalman Patel <br/>
 Roll: 143050030
