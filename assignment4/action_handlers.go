@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/cs733-iitb/cluster"
-	"github.com/cs733-iitb/log"
+	//"github.com/cs733-iitb/log"
 	"os"
 	//	"reflect"
 	"bufio"
@@ -48,13 +48,13 @@ func (rn *RaftNode) ProcessCommitAc(action CommitAc) {
 func (rn *RaftNode) ProcessLogStoreAc(action LogStoreAc) {
 	//	fmt.Printf("%v ProcessLogStoreAc \n", rn.Id())
 	//fmt.Printf("log store start: %v\n",time.Now())
-	logFP, err := log.Open(rn.logDir + "/" + LogFile)
-	logFP.RegisterSampleEntry(LogEntry{})
-	assert(err == nil)
-	defer logFP.Close()
-	assert(int64(logFP.GetLastIndex()+1) >= action.index)
-	logFP.TruncateToEnd(int64(action.index))
-	logFP.Append(LogEntry{action.term, action.data})
+	//logFP, err := log.Open(rn.logDir + "/" + LogFile)
+	//logFP.RegisterSampleEntry(LogEntry{})
+	//assert(err == nil)
+	//defer logFP.Close()
+	assert(int64(rn.logFP.GetLastIndex()+1) >= action.index)
+	rn.logFP.TruncateToEnd(int64(action.index))
+	rn.logFP.Append(LogEntry{action.term, action.data})
 	//fmt.Printf("log store end: %v\n",time.Now())
 }
 
@@ -70,18 +70,18 @@ func (rn *RaftNode) ProcessStateStoreAc(action StateStoreAc) {
 	stateAttrsFP.Append(PersistentStateAttrs{action.term, action.state, action.votedFor})
 	*/
 	//fmt.Printf("start of state store %v \n", time.Now())
-	f, err := os.OpenFile("state"+rn.logDir[3:], os.O_WRONLY, 0666)
-	checkErr(err, "opening state file in state action handler")
-	defer f.Close()
-	b := bufio.NewWriter(f)
+	//f, err := os.OpenFile("state"+rn.logDir[3:], os.O_WRONLY, 0666)
+	//checkErr(err, "opening state file in state action handler")
+	//defer f.Close()
+	b := bufio.NewWriter(rn.stateFP)
 	defer func() {
-		if err = b.Flush(); err != nil {
+		if err := b.Flush(); err != nil {
 			//log.Fatal(err)
 			fmt.Println("Error: ProcessStateStoreAc - flush()")
 			os.Exit(1)
 		}
 	}()
-	_, err = fmt.Fprintf(b, "%s %s %s\n", strconv.FormatInt(action.term, 10), action.state, strconv.FormatInt(action.votedFor, 10))
+	_, err := fmt.Fprintf(b, "%s %s %s\n", strconv.FormatInt(action.term, 10), action.state, strconv.FormatInt(action.votedFor, 10))
 	checkErr(err, "writing to state file in state action handler")
 	//fmt.Printf("start of state store %v \n", time.Now())
 }

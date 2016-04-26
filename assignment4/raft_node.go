@@ -27,6 +27,8 @@ type RaftNode struct { // implements Node interface
 	nwHandler   cluster.Server
 	timer       *time.Timer
 	logDir      string
+	stateFP     *os.File
+	logFP       *log.Log
 }
 
 type NetConfig struct {
@@ -66,15 +68,18 @@ func initRaftNode(id int64, peers []NetConfig, jsonFile string) RaftNode {
 func New(rnConfig RaftNodeConfig, jsonFile string) RaftNode {
 	var rn RaftNode
 	rn.eventCh = make(chan interface{}, 100000)
-	//rn.timeoutCh = make(chan bool)
 	rn.shutdownSig = make(chan bool)
 	rn.commitCh = make(chan CommitInfo, 5000)
-	// rn.parTOs = 0
 	rn.logDir = rnConfig.logDir
+
+	// open log file and initialize logfp variable
+	var err error
+	rn.logFP, err = log.Open(rnConfig.logDir + "/" + LogFile)
+	rn.logFP.RegisterSampleEntry(LogEntry{})
+	assert(err == nil)
 
 	rn.initializeStateMachine(rnConfig)
 
-	var err error
 	rn.nwHandler, err = cluster.New(int(rnConfig.id), jsonFile)
 	assert(err == nil)
 
@@ -131,14 +136,14 @@ func (rn *RaftNode) Shutdown() {
 }
 
 func (rn *RaftNode) initializeLog(rnConfig RaftNodeConfig) int64 {
-	logFP, err := log.Open(rnConfig.logDir + "/" + LogFile)
-	logFP.RegisterSampleEntry(LogEntry{})
-	assert(err == nil)
-	defer logFP.Close()
-	totLogEntrs := logFP.GetLastIndex() // should return 1
+	//logFP, err := log.Open(rnConfig.logDir + "/" + LogFile)
+	//logFP.RegisterSampleEntry(LogEntry{})
+	//assert(err == nil)
+	//defer logFP.Close()
+	totLogEntrs := rn.logFP.GetLastIndex() // should return 1
 	if totLogEntrs > 0 {
 		for j := 0; j < int(totLogEntrs); j++ {
-			res, err := logFP.Get(int64(j))
+			res, err := rn.logFP.Get(int64(j))
 			assert(err == nil)
 			logEntry, ok := res.(LogEntry)
 			assert(ok)
@@ -186,9 +191,11 @@ func (rn *RaftNode) initializeStateMachine(rnConfig RaftNodeConfig) {
 	stateAttrs, ok := res.(PersistentStateAttrs)
 	assert(ok)
 	*/
-	f, err := os.OpenFile("state"+rnConfig.logDir[3:], os.O_RDONLY, 0666)
+	f, err := os.OpenFile("state"+rnConfig.logDir[3:], os.O_RDWR|os.O_CREATE, 0666)
 	checkErr(err, "opening state file : initializeStateMachine")
-	defer f.Close()
+	rn.stateFP = f
+
+	//defer f.Close()
 	b := bufio.NewReader(f)
 	var stateStr string
 	var termStr string
@@ -208,7 +215,6 @@ func (rn *RaftNode) initializeStateMachine(rnConfig RaftNodeConfig) {
 	checkErr(err, "initializeStateMachine: string to int conversion")
 	rn.sm.votedFor, err = strconv.ParseInt(vfStr, 10, 64)
 	checkErr(err, "initializeStateMachine: string to int conversion")
-	//}
 }
 
 // Process Append request from client
