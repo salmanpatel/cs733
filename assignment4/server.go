@@ -71,7 +71,7 @@ func reply(conn *net.TCPConn, msg *fs.Msg) bool {
 	return err == nil
 }
 
-func serve(conn *net.TCPConn, clientId int64, cmdChan chan *Response, rn RaftNode, fsStruct *fs.FS, gversion *int) {
+func serve(conn *net.TCPConn, clientId int64, cmdChan chan *Response, rn RaftNode, fsStruct *fs.FS, gversion *int, jsonFile string) {
 	//fmt.Println("Inside Serve")
 
 	reader := bufio.NewReader(conn)
@@ -153,7 +153,6 @@ func getConnStringById(id int64, jsonFile string) string {
 }
 
 func serverMain(id int64, peers []NetConfig, jsonFile string) {
-
 	// Initialize raft node and spawn independent go routine
 	rn := initRaftNode(id, peers, jsonFile)
 	go rn.processEvents()
@@ -238,6 +237,7 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 	}()
 
 	for {
+		// fmt.Println("waiting for connections")
 		tcp_conn, err := tcp_acceptor.AcceptTCP()
 		check(err)
 		//fmt.Println("Connection establised")
@@ -246,7 +246,7 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 		mapLock.Lock()
 		clientIdToChanMap[clientId] = make(chan *Response)
 		mapLock.Unlock()
-		go serve(tcp_conn, clientId, clientIdToChanMap[clientId], rn, fsStruct, &gversion)
+		go serve(tcp_conn, clientId, clientIdToChanMap[clientId], rn, fsStruct, &gversion, jsonFile)
 	}
 }
 
@@ -264,4 +264,15 @@ func decode(msgBytes []byte) (fs.Msg, error) {
 	var le MsgStruct
 	err := enc.Decode(&le)
 	return le.Data, err
+}
+
+func main() {
+	if len(os.Args) != 3 {
+		fmt.Println("Trying to start server withouot necessary arguments")
+		os.Exit(1)
+	}
+	peers := prepareRaftNodeConfigObj(os.Args[2])
+	clientId, err := strconv.ParseInt(os.Args[1], 10, 64)
+	check(err)
+	serverMain(clientId, peers, os.Args[2])
 }

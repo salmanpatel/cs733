@@ -1,11 +1,15 @@
 package main
 
 import (
-	_ "fmt"
+	"fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
+	"os"
 	//	"reflect"
+	"bufio"
+	"strconv"
 	"time"
+	//"log"
 )
 
 // Process Alarm action - by generating timer
@@ -56,16 +60,35 @@ func (rn *RaftNode) ProcessLogStoreAc(action LogStoreAc) {
 
 func (rn *RaftNode) ProcessStateStoreAc(action StateStoreAc) {
 	// fmt.Printf("%v ProcessStateStoreAc \n", rn.Id())
+
+	/* Old state store handling
 	stateAttrsFP, err := log.Open(rn.logDir + "/" + StateFile)
 	stateAttrsFP.RegisterSampleEntry(PersistentStateAttrs{})
 	assert(err == nil)
 	defer stateAttrsFP.Close()
 	stateAttrsFP.TruncateToEnd(0) // Flush previous state
 	stateAttrsFP.Append(PersistentStateAttrs{action.term, action.state, action.votedFor})
+	*/
+	//fmt.Printf("start of state store %v \n", time.Now())
+	f, err := os.OpenFile("state"+rn.logDir[3:], os.O_WRONLY, 0666)
+	checkErr(err, "opening state file in state action handler")
+	defer f.Close()
+	b := bufio.NewWriter(f)
+	defer func() {
+		if err = b.Flush(); err != nil {
+			//log.Fatal(err)
+			fmt.Println("Error: ProcessStateStoreAc - flush()")
+			os.Exit(1)
+		}
+	}()
+	_, err = fmt.Fprintf(b, "%s %s %s", strconv.FormatInt(action.term, 10), action.state, 10, strconv.FormatInt(action.votedFor, 10))
+	checkErr(err, "writing to state file in state action handler")
+	//fmt.Printf("start of state store %v \n", time.Now())
 }
 
 func assert(val bool) {
 	if !val {
-		panic("Assertion Failed")
+		fmt.Println("Assertion Failed")
+		os.Exit(1)
 	}
 }

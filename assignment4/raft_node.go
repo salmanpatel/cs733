@@ -3,11 +3,12 @@ package main
 import (
 	"encoding/gob"
 	"errors"
-	_ "fmt"
+	"fmt"
 	"github.com/cs733-iitb/cluster"
 	"github.com/cs733-iitb/log"
-	//	"os"
+	"os"
 	//	"reflect"
+	"bufio"
 	"math/rand"
 	"strconv"
 	"time"
@@ -171,6 +172,7 @@ func (rn *RaftNode) initializeStateMachine(rnConfig RaftNodeConfig) {
 		rn.sm.votedFor = 0
 	} else {*/
 	// read from a file
+	/* old
 	stateAttrsFP, err := log.Open(rnConfig.logDir + "/" + StateFile)
 	stateAttrsFP.RegisterSampleEntry(PersistentStateAttrs{})
 	assert(err == nil)
@@ -179,12 +181,33 @@ func (rn *RaftNode) initializeStateMachine(rnConfig RaftNodeConfig) {
 	// fmt.Printf("initializeStateMachine: last index = %v\n", i)
 	assert(i == 0)
 	res, err := stateAttrsFP.Get(0)
+	fmt.Println("reading state file")
 	assert(err == nil)
 	stateAttrs, ok := res.(PersistentStateAttrs)
 	assert(ok)
+	*/
+	f, err := os.OpenFile("state"+rnConfig.logDir[3:], os.O_RDONLY, 0666)
+	checkErr(err, "opening state file : initializeStateMachine")
+	defer f.Close()
+	b := bufio.NewReader(f)
+	var stateStr string
+	var termStr string
+	var vfStr string
+	_, err = fmt.Fscanf(b, "%s %s %s", &termStr, &stateStr, &vfStr)
+	//fmt.Println(err)
+	checkErr(err, "reading to state file : initializeStateMachine")
+
+	/* old
 	rn.sm.state = stateAttrs.State
 	rn.sm.term = stateAttrs.Term
 	rn.sm.votedFor = stateAttrs.VotedFor
+	*/
+
+	rn.sm.state = stateStr
+	rn.sm.term, err = strconv.ParseInt(termStr, 10, 64)
+	checkErr(err, "string to int conversion")
+	rn.sm.votedFor, err = strconv.ParseInt(vfStr, 10, 64)
+	checkErr(err, "string to int conversion")
 	//}
 }
 

@@ -2,10 +2,11 @@ package main
 
 import (
 	//"encoding/json"
-	_ "fmt"
-	"github.com/cs733-iitb/log"
+	"fmt"
+	//"github.com/cs733-iitb/log"
 	//"io/ioutil"
 	"os"
+	"os/exec"
 	"sync"
 	//"runtime"
 	"strconv"
@@ -16,11 +17,14 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"log"
 	"net"
 	// "reflect"
 )
 
 const jsonFile = "config.json"
+
+var fsProcesses map[int64]*exec.Cmd
 
 type Msg struct {
 	// Kind = the first character of the command. For errors, it
@@ -36,6 +40,7 @@ type Msg struct {
 
 func cleanup(logDir string) {
 	os.RemoveAll(logDir)
+	os.Remove("state" + logDir[3:])
 }
 
 /*
@@ -46,6 +51,8 @@ initialize state variable file with default values
 func initRaftStateFile(logDir string) {
 	// fmt.Printf("init raft state file : logDir - %v \n", logDir)
 	cleanup(logDir)
+
+	/* Old state file creation
 	stateAttrsFP, err := log.Open(logDir + "/" + StateFile)
 	stateAttrsFP.RegisterSampleEntry(PersistentStateAttrs{})
 	stateAttrsFP.SetCacheSize(1)
@@ -55,7 +62,24 @@ func initRaftStateFile(logDir string) {
 	err1 := stateAttrsFP.Append(PersistentStateAttrs{0, "Follower", 0})
 	// fmt.Println(err1)
 	assert(err1 == nil)
-	// fmt.Println("file created successfully")
+	*/
+
+	f, err := os.OpenFile("state"+logDir[3:], os.O_CREATE|os.O_WRONLY, 0666)
+	//fmt.Println(err)
+	checkErr(err, "opening state file : initRaftStateFile ")
+	defer f.Close()
+	b := bufio.NewWriter(f)
+	defer func() {
+		if err = b.Flush(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	//var n int
+	_, err = fmt.Fprintf(b, "%s %s %s", "0", "Follower", "0")
+	//fmt.Println(n)
+	checkErr(err, "writing to state file : initRaftStateFile ")
+	//fmt.Println("file created successfully")
 }
 
 func InitServer() {
@@ -69,9 +93,24 @@ func InitServer() {
 	time.Sleep(5 * time.Second)
 }
 
+func startAllServers() {
+	fsProcesses = make(map[int64]*exec.Cmd)
+	peers := prepareRaftNodeConfigObj(jsonFile)
+	for i := 0; i < len(peers); i++ {
+		initRaftStateFile("dir" + strconv.FormatInt(peers[i].id, 10))
+		cmd := exec.Command("./assignment4", strconv.FormatInt(peers[i].id, 10), jsonFile)
+		cmd.Stdout = os.Stdout
+		cmd.Stdin = os.Stdin
+		cmd.Start()
+		fsProcesses[peers[i].id] = cmd
+	}
+	time.Sleep(5 * time.Second)
+}
+
 func TestSimple(t *testing.T) {
 	// fmt.Println("Starting file server")
-	InitServer()
+	//InitServer()
+	startAllServers()
 }
 
 func expect(t *testing.T, response *Msg, expected *Msg, errstr string, err error) {
@@ -101,7 +140,7 @@ func expect(t *testing.T, response *Msg, expected *Msg, errstr string, err error
 func TestRPC_BasicSequential(t *testing.T) {
 	cl := mkClient(t, "localhost:9001")
 	defer cl.close()
-
+	//fmt.Println("BasicSequential started")
 	// Read non-existent file cs733net
 	m, err := cl.read("cs733net")
 	expect(t, m, &Msg{Kind: 'F'}, "file not found", err)
@@ -157,7 +196,7 @@ func TestRPC_BasicSequential(t *testing.T) {
 	expect(t, m, &Msg{Kind: 'F'}, "file not found", err)
 	//fmt.Println("read(cs733net)")
 
-	fmt.Println("TestRPC_BasicSequential Pass")
+	//fmt.Println("TestRPC_BasicSequential Pass")
 }
 
 func TestRPC_Binary(t *testing.T) {
