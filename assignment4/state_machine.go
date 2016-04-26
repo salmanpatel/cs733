@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"fmt"
+	_ "fmt"
 	"math/rand"
 )
 
@@ -62,7 +62,7 @@ func RandInt(min int64) int64 {
 }
 
 func (sm *StateMachine) HandleOutstandingCmd() []interface{} {
-	fmt.Printf("%v outstanding writes from index %v to %v\n", sm.config.serverId, sm.commitIndex+1, len(sm.log))
+	//fmt.Printf("%v outstanding writes from index %v to %v\n", sm.config.serverId, sm.commitIndex+1, len(sm.log))
 	var actions []interface{}
 	for i := int(sm.commitIndex) + 1; i < len(sm.log); i++ {
 		//fmt.Printf("%v redirection for index %v\n",sm.config.serverId, i)

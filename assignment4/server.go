@@ -219,7 +219,7 @@ func serverMain(id int64, peers []NetConfig, jsonFile string) {
 			}
 			msg, err := decode(cmtInfo.data)
 			if err != nil {
-				// server facing problem with messafe decoding
+				// server facing problem with message decoding
 				fmt.Println("Error: decoding message after replication")
 			} else {
 				response := fs.ProcessMsg(&msg, fsStruct, &gversion)
