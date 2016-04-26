@@ -81,7 +81,7 @@ func (rn *RaftNode) ProcessStateStoreAc(action StateStoreAc) {
 			os.Exit(1)
 		}
 	}()
-	_, err = fmt.Fprintf(b, "%s %s %s", strconv.FormatInt(action.term, 10), action.state, 10, strconv.FormatInt(action.votedFor, 10))
+	_, err = fmt.Fprintf(b, "%s %s %s\n", strconv.FormatInt(action.term, 10), action.state, strconv.FormatInt(action.votedFor, 10))
 	checkErr(err, "writing to state file in state action handler")
 	//fmt.Printf("start of state store %v \n", time.Now())
 }

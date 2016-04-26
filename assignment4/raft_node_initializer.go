@@ -49,7 +49,7 @@ func prepareRaftNodeConfigObj(jsonFile string) []NetConfig {
 	for i, peer := range peerSpecArr.Peers {
 		hostPort := strings.Split(peer.Address, ":")
 		port, err := strconv.Atoi(hostPort[1])
-		checkErr(err, "string to int conversion for port")
+		checkErr(err, "prepareRaftNodeConfigObj: string to int conversion for port")
 		peers[i] = NetConfig{peer.Id, hostPort[0], port}
 	}
 	return peers
@@ -65,7 +65,7 @@ func prepareFSConfigObj(jsonFile string) []NetConfig {
 	for i, peer := range peerSpecArr.Peers {
 		hostPort := strings.Split(peer.FSAddress, ":")
 		port, err := strconv.Atoi(hostPort[1])
-		checkErr(err, "string to int conversion for port")
+		checkErr(err, "prepareFSConfigObj: string to int conversion for port")
 		peers[i] = NetConfig{peer.Id, hostPort[0], port}
 	}
 	return peers

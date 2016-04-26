@@ -76,7 +76,7 @@ func initRaftStateFile(logDir string) {
 	}()
 
 	//var n int
-	_, err = fmt.Fprintf(b, "%s %s %s", "0", "Follower", "0")
+	_, err = fmt.Fprintf(b, "%s %s %s\n", "0", "Follower", "0")
 	//fmt.Println(n)
 	checkErr(err, "writing to state file : initRaftStateFile ")
 	//fmt.Println("file created successfully")
@@ -105,6 +105,14 @@ func startAllServers() {
 		fsProcesses[peers[i].id] = cmd
 	}
 	time.Sleep(5 * time.Second)
+}
+
+func startServer(serverId int64) {
+	cmd := exec.Command("./assignment4", strconv.FormatInt(serverId, 10), jsonFile)
+	cmd.Stdout = os.Stdout
+	cmd.Stdin = os.Stdin
+	cmd.Start()
+	fsProcesses[serverId] = cmd
 }
 
 func TestSimple(t *testing.T) {
@@ -405,6 +413,91 @@ func TestRPC_ConcurrentCas(t *testing.T) {
 	if !(m.Kind == 'C' && strings.HasSuffix(string(m.Contents), " 1")) {
 		t.Fatalf("Expected to be able to read after 1000 writes. Got msg.Kind = %d, msg.Contents=%s", m.Kind, m.Contents)
 	}
+}
+
+func TestFollowerCrash(t *testing.T) {
+	connString := "localhost:9005"
+
+	cl := mkClient(t, connString)
+	defer cl.close()
+	//fmt.Println("BasicSequential started")
+	// Read non-existent file cs733net
+	m, err := cl.read("F_Crash")
+	expect(t, m, &Msg{Kind: 'F'}, "file not found", err)
+	//fmt.Println("cl.read(cs733net) pass")
+
+	// Write file cs733net
+	data := "Cloud fun"
+	cl, m, err = cl.sendWriteCommand(t, "F_Crash", data, 0)
+	expect(t, m, &Msg{Kind: 'O'}, "write success", err)
+	//fmt.Println("cl.sendWriteCommand(t,cs733net, data, 0) pass")
+
+	leaderId := identifyLeader(t)
+	//fmt.Printf("leader id: %v \n",leaderId)
+	var followerId int64
+	fsPeers := prepareFSConfigObj(jsonFile)
+	for _, peer := range fsPeers {
+		if peer.id != leaderId {
+			followerId = peer.id
+			break
+		}
+	}
+	//fmt.Printf("follower Id: %v \n",followerId)
+
+	// kill follower
+	err = fsProcesses[followerId].Process.Kill()
+	checkErr(err, "killing follower")
+
+	data = "file created in absence of one follower"
+	cl, m, err = cl.sendWriteCommand(t, "F_Crash_2", data, 0)
+	expect(t, m, &Msg{Kind: 'O'}, "write success", err)
+	//fmt.Println("F_Crash_2 success")
+
+	cl, m, err = cl.sendDeleteCommand(t, "F_Crash")
+	expect(t, m, &Msg{Kind: 'O'}, "delete success", err)
+
+	// start follower back
+	startServer(followerId)
+
+	// wait for replication
+	time.Sleep(3 * time.Second)
+
+	// read it from follower which was crashed
+	cl.close()
+	connString = idToConnString(followerId)
+	//fmt.Printf("connecting to %v\n", connString)
+	cl = mkClient(t, connString)
+	m, err = cl.read("F_Crash_2")
+	expect(t, m, &Msg{Kind: 'C', Contents: []byte(data)}, "read F_Crash_2", err)
+	m, err = cl.read("F_Crash")
+	expect(t, m, &Msg{Kind: 'F', Contents: []byte(data)}, "read F_Crash", err)
+	//fmt.Println("cl.read(cs733net) pass")
+}
+
+func idToConnString(id int64) string {
+	fsPeers := prepareFSConfigObj(jsonFile)
+	for _, peer := range fsPeers {
+		if peer.id == id {
+			return peer.host + ":" + strconv.Itoa(peer.port)
+		}
+	}
+	return ""
+}
+
+func identifyLeader(t *testing.T) int64 {
+	fsPeers := prepareFSConfigObj(jsonFile)
+	for _, peer := range fsPeers {
+		cl := mkClient(t, peer.host+":"+strconv.Itoa(peer.port))
+		msg, err := cl.delete("SomeNonExistingFile")
+		// fmt.Printf("sendWriteCommand: %v\n", msg)
+		if err != nil {
+			t.Fatal("Unexpected error: " + err.Error())
+		}
+		if msg != nil && msg.Kind != 'R' {
+			return peer.id
+		}
+	}
+	return 100
 }
 
 func mkClient(t *testing.T, connString string) *Client {

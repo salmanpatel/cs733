@@ -193,7 +193,7 @@ func (rn *RaftNode) initializeStateMachine(rnConfig RaftNodeConfig) {
 	var stateStr string
 	var termStr string
 	var vfStr string
-	_, err = fmt.Fscanf(b, "%s %s %s", &termStr, &stateStr, &vfStr)
+	_, err = fmt.Fscanf(b, "%s %s %s\n", &termStr, &stateStr, &vfStr)
 	//fmt.Println(err)
 	checkErr(err, "reading to state file : initializeStateMachine")
 
@@ -205,9 +205,9 @@ func (rn *RaftNode) initializeStateMachine(rnConfig RaftNodeConfig) {
 
 	rn.sm.state = stateStr
 	rn.sm.term, err = strconv.ParseInt(termStr, 10, 64)
-	checkErr(err, "string to int conversion")
+	checkErr(err, "initializeStateMachine: string to int conversion")
 	rn.sm.votedFor, err = strconv.ParseInt(vfStr, 10, 64)
-	checkErr(err, "string to int conversion")
+	checkErr(err, "initializeStateMachine: string to int conversion")
 	//}
 }
 
